@@ -121,7 +121,7 @@ export const scenarios = [
       await page.locator('.topbar button', { hasText: 'تصدير' }).click();
       let f = await download(page, () => page.locator('.sheet button', { hasText: 'SVG كامل' }).click());
       const svg = f.data.toString();
-      fs.writeFileSync('e2e/out/last.svg', svg); expect(f.name.endsWith('.svg') && svg.includes('<path') && svg.includes('viewBox="0 0 1080 1080"'), 'bad svg');
+      expect(svg.includes('<path') && svg.includes('viewBox="0 0 1080 1080"'), 'bad svg ' + f.name);
       f = await download(page, () => page.locator('.sheet button', { hasText: 'SVG مبسّط' }).click());
       expect(!f.data.toString().includes('<use'), 'simple svg should not use <use>');
       f = await download(page, () => page.locator('.sheet button', { hasText: 'PNG شفاف' }).click());

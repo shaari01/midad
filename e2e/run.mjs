@@ -15,10 +15,13 @@ const PORT = 4179;
 const URL = `http://localhost:${PORT}/`;
 fs.mkdirSync('e2e/out', { recursive: true });
 
-const server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], { stdio: 'pipe' });
+const server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], { stdio: 'pipe', detached: true });
+const stopServer = () => { try { process.kill(-server.pid, 'SIGTERM'); } catch { /* gone */ } };
+process.on('exit', stopServer);
 await new Promise((res, rej) => {
   const t = setTimeout(() => rej(new Error('preview did not start')), 30000);
   server.stdout.on('data', (d) => { if (String(d).includes('localhost')) { clearTimeout(t); res(); } });
+  server.stderr.on('data', (d) => process.stderr.write(d));
 });
 
 const only = process.argv.slice(2).map(Number);
@@ -57,7 +60,7 @@ for (const sc of scenarios) {
 }
 
 await browser.close();
-server.kill();
+stopServer();
 console.log(results.join('\n'));
 console.log(failed ? `\n${failed} failed` : '\nall passed');
 process.exit(failed ? 1 : 0);
