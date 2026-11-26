@@ -254,3 +254,10 @@ body.mobile .topbar .fitbtn, body.mobile .topbar .modebtn { display: none; }
 .fillthumb { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; }
 .subcard strong { font-size: 14px; }
 .subcard .slider .flabel:empty { display: none; }
+
+/* phase 5 */
+#overlay .kgrid { fill: none; stroke: var(--sel); stroke-opacity: .35; stroke-width: 1; pointer-events: none; }
+#overlay .kmid { fill: none; stroke: var(--accent); stroke-opacity: .7; stroke-width: 1.5; stroke-dasharray: 5 4; pointer-events: none; }
+#overlay .penpreview { pointer-events: none; fill-rule: nonzero; opacity: .9; }
+#overlay .warpprev { fill: rgba(47,155,255,.22); stroke: var(--sel); stroke-width: 1.5; pointer-events: none; }
+.side input.txt, input.txt { width: 100%; min-height: 44px; font-size: 18px; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel2); color: var(--text); }

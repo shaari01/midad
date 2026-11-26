@@ -345,3 +345,81 @@ scenarios.push({
     await shot('blend');
   },
 });
+
+scenarios.push({
+  phase: 5, id: 'kufi', name: 'الكوفي المربع: إنشاء شبكة، رسم خلايا بتناظر، كتابة آلية، تحويل',
+  async run({ page, vp, expect, shot }) {
+    await fresh(page);
+    await page.evaluate(() => { const { app } = window.midad; app.settings.kufiSize = 11; app.settings.kufiSym = 'mirror'; app.setTool('kufi'); });
+    await page.mouse.click(...(await screenOf(page, 540, 540)));
+    let d = await doc(page);
+    expect(d.objects.length === 1 && d.objects[0].type === 'kufi' && d.objects[0].cols === 11, 'kufi grid not created');
+    const m = d.objects[0].m; // cell 30 → grid origin
+    const cellC = (c, r) => screenOf(page, m[4] + c * 30 + 15, m[5] + r * 30 + 15);
+    await drag(page, await cellC(1, 2), await cellC(4, 2));
+    d = await doc(page);
+    const cells = d.objects[0].cells;
+    const filled = [...cells].filter((x) => x === '1').length;
+    expect(filled >= 8, 'mirror paint expected ≥8 cells, got ' + filled);
+    expect(cells[2 * 11 + 9] === '1', 'mirror cell missing');
+    await shot('painted');
+    await openProps(page, vp);
+    await page.locator('.side input.txt:visible').first().fill('محمد');
+    await clickBtn(page, 'كتابة آلية');
+    d = await doc(page);
+    expect(d.objects[0].cols > 11 || d.objects[0].cells !== cells, 'auto-write did nothing');
+    await clickBtn(page, 'تحويل إلى شكل واحد');
+    d = await doc(page);
+    expect(d.objects[0].type === 'path' && d.objects[0].live?.type === 'kufi', 'kufi conversion failed');
+    await closeDrawer(page, vp);
+    await shot('converted');
+  },
+});
+
+scenarios.push({
+  phase: 5, id: 'pen', name: 'الكتابة اليدوية بقلم القصب والقلم المستدير',
+  async run({ page, vp, expect, shot }) {
+    await fresh(page);
+    await page.evaluate(() => { const { app } = window.midad; app.settings.penType = 'qalam'; app.settings.penWidth = 30; app.setTool('pen'); });
+    const pts = [];
+    for (let i = 0; i <= 20; i++) pts.push(await screenOf(page, 300 + i * 25, 500 + Math.sin(i / 3) * 80));
+    await page.mouse.move(...pts[0]); await page.mouse.down();
+    for (const p of pts.slice(1)) await page.mouse.move(...p, { steps: 2 });
+    await page.mouse.up();
+    await page.evaluate(() => { window.midad.app.settings.penType = 'round'; });
+    await drag(page, await screenOf(page, 300, 750), await screenOf(page, 800, 780));
+    const d = await doc(page);
+    expect(d.objects.length === 2 && d.objects.every((o) => o.type === 'path' && o.d.length > 20), 'pen strokes missing: ' + d.objects.length);
+    await shot('strokes');
+  },
+});
+
+scenarios.push({
+  phase: 5, id: 'warp', name: 'الغلاف والتشويه: قوس، دائرة، شبكة حرة مع نسخة حيّة',
+  async run({ page, vp, expect, shot }) {
+    await fresh(page);
+    const id = await addText(page, 'سلام', { size: 260, m: [1, 0, 0, 1, 250, 300] });
+    await page.evaluate((i) => { window.midad.app.select([i]); window.midad.app.setTool('warp'); }, id);
+    await openProps(page, vp);
+    await page.locator('.side button.chip:visible').filter({ hasText: 'قوس' }).first().click();
+    await shot('arc-preview');
+    expect(await page.locator('#overlay .warpprev').count() === 1, 'no warp preview');
+    await clickBtn(page, 'تطبيق');
+    let d = await doc(page);
+    expect(d.objects[0].type === 'path' && d.objects[0].live?.type === 'text', 'warp did not produce path with live copy');
+    // free mesh on the result
+    await page.evaluate(() => window.midad.app.setTool('warp'));
+    await page.locator('.side button.chip:visible').filter({ hasText: 'غلاف حر' }).first().click();
+    await closeDrawer(page, vp);
+    const hb = await page.locator('#overlay [data-handle="m4"]').boundingBox();
+    const c = [hb.x + hb.width / 2, hb.y + hb.height / 2];
+    await drag(page, c, [c[0], c[1] - 60]);
+    await openProps(page, vp);
+    const before = d.objects[0].d;
+    await clickBtn(page, 'تطبيق');
+    d = await doc(page);
+    expect(d.objects[0].d !== before, 'mesh warp did not change shape');
+    await closeDrawer(page, vp);
+    await shot('mesh');
+  },
+});
