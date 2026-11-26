@@ -1,7 +1,7 @@
 import './styles.css';
 import { App } from './ui/app.js';
 import { Canvas, isTyping } from './ui/canvas.js';
-import { h, btn, icon, toast, closeSheet } from './ui/dom.js';
+import { h, btn, icon, toast, closeSheet, openSheet } from './ui/dom.js';
 import { renderProps, renderLayers } from './ui/panels.js';
 import { openFileMenu, exportDialog, importGraphic, importSVGText } from './ui/menus.js';
 import { TOOLS, TOOLBAR } from './tools/index.js';
@@ -101,6 +101,10 @@ function buildUI() {
     toolbar.append(...TOOLBAR.map(mk));
     bottombar.innerHTML = '';
     bottombar.append(...TOOLBAR.filter((t) => t.mobile).map(mk));
+    const extra = TOOLBAR.filter((t) => !t.mobile);
+    const cur = extra.find((t) => t.id === app.tool);
+    bottombar.append(btn(cur ? cur.icon : 'more', cur ? cur.label : 'المزيد', () => openSheet('كل الأدوات', h('div', { class: 'mgrid' },
+      TOOLBAR.map((t) => btn(t.icon, t.label, () => { closeSheet(); app.setTool(t.id); }, { active: app.tool === t.id })))), { active: !!cur, class: 'morebtn' }));
   };
   renderToolbars();
 

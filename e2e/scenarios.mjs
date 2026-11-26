@@ -219,3 +219,84 @@ scenarios.push({
     expect(d.objects[0].type === 'path' && d.objects[0].live?.type === 'letters', 'letters outline failed');
   },
 });
+
+export async function addSquares(page) {
+  return page.evaluate(() => {
+    const { app } = window.midad;
+    const mk = (x, y, s, color) => ({ id: 'p' + Math.random().toString(36).slice(2), type: 'path', name: 'مربع', visible: true, locked: false, d: `M${x},${y} L${x + s},${y} L${x + s},${y + s} L${x},${y + s} Z`, m: [1, 0, 0, 1, 0, 0], style: { fills: [{ type: 'solid', color, opacity: 1 }], strokes: [], opacity: 1 }, live: null });
+    const a = mk(250, 300, 400, '#c9a227'), b = mk(450, 500, 400, '#0b3d91');
+    app.doc.objects.push(a, b); app.select([a.id, b.id]); app.commit('test');
+    return [a.id, b.id];
+  });
+}
+
+scenarios.push({
+  phase: 3, id: 'nodes', name: 'تعديل العقد وحذفها وإضافتها',
+  async run({ page, vp, shot, expect }) {
+    await fresh(page);
+    const id = await addText(page, 'ب', { size: 500, m: [1, 0, 0, 1, 300, 200] });
+    await page.evaluate((i) => window.midad.app.select(i), id);
+    await openProps(page, vp);
+    await clickBtn(page, 'تحويل إلى أشكال');
+    await clickBtn(page, 'تعديل العقد');
+    await closeDrawer(page, vp);
+    const d0 = (await doc(page)).objects[0].d;
+    const n0 = await page.locator('#overlay [data-handle^="n:"]').count();
+    expect(n0 > 5, 'nodes not shown');
+    const hb = await page.locator('#overlay [data-handle="n:0:0"]').boundingBox();
+    const c = [hb.x + hb.width / 2, hb.y + hb.height / 2];
+    await drag(page, c, [c[0] - 40, c[1] - 50]);
+    const d1 = (await doc(page)).objects[0].d;
+    expect(d1 !== d0, 'node drag did not change path');
+    await shot('dragged');
+    await page.evaluate(() => window.midad.app.emit('deleteKey'));
+    await page.waitForTimeout(150);
+    const n1 = await page.locator('#overlay [data-handle^="n:"]').count();
+    expect(n1 === n0 - 1, `delete node failed ${n0} → ${n1}`);
+    await page.locator('button[aria-label="تراجع"]').click();
+    await page.waitForTimeout(150);
+    expect((await page.locator('#overlay [data-handle^="n:"]').count()) === n0, 'undo of node delete failed');
+  },
+});
+
+scenarios.push({
+  phase: 3, id: 'boolean', name: 'دمج وتقسيم وباني الأشكال',
+  async run({ page, vp, shot, expect }) {
+    await fresh(page);
+    await addSquares(page);
+    await openProps(page, vp);
+    await clickBtn(page, 'دمج');
+    let d = await doc(page);
+    expect(d.objects.length === 1, 'unite failed');
+    await page.locator('button[aria-label="تراجع"]').click();
+    await page.evaluate(() => { const { app } = window.midad; app.select(app.doc.objects.map((o) => o.id)); });
+    await clickBtn(page, 'تقسيم');
+    d = await doc(page);
+    expect(d.objects.length === 3, 'divide expected 3 got ' + d.objects.length);
+    await page.locator('button[aria-label="تراجع"]').click();
+    await page.evaluate(() => { const { app } = window.midad; app.select(app.doc.objects.map((o) => o.id)); app.setTool('builder'); });
+    await closeDrawer(page, vp);
+    const a = await screenOf(page, 350, 400), b = await screenOf(page, 550, 600);
+    await drag(page, a, b);
+    d = await doc(page);
+    expect(d.objects.length === 2, 'shape builder expected 2 got ' + d.objects.length);
+    await shot('builder');
+  },
+});
+
+scenarios.push({
+  phase: 3, id: 'knife', name: 'السكين والممحاة',
+  async run({ page, expect, shot }) {
+    await fresh(page);
+    await page.evaluate(() => { const { app } = window.midad; app.doc.objects.push({ id: 'sq', type: 'path', name: 'مربع', visible: true, locked: false, d: 'M300,300 L700,300 L700,700 L300,700 Z', m: [1, 0, 0, 1, 0, 0], style: { fills: [{ type: 'solid', color: '#222', opacity: 1 }], strokes: [], opacity: 1 } }); app.commit('t'); app.select([]); app.setTool('knife'); });
+    await drag(page, await screenOf(page, 500, 200), await screenOf(page, 520, 800));
+    let d = await doc(page);
+    expect(d.objects.length === 2, 'knife expected 2 pieces got ' + d.objects.length);
+    await page.evaluate(() => { window.midad.app.select([]); window.midad.app.setTool('eraser'); });
+    const before = d.objects.map((o) => o.d).join('');
+    await drag(page, await screenOf(page, 250, 500), await screenOf(page, 750, 500));
+    d = await doc(page);
+    expect(d.objects.map((o) => o.d).join('') !== before, 'eraser changed nothing');
+    await shot('erased');
+  },
+});

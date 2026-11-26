@@ -226,3 +226,18 @@ body.mobile .topbar .fitbtn, body.mobile .topbar .modebtn { display: none; }
 .altcard.on { border-color: var(--accent); }
 .altcard svg { width: 100%; height: 60px; }
 .altcard small { font-size: 11px; color: var(--muted); }
+
+/* phase 3: nodes & shaping */
+#overlay .nodepath { fill: none; stroke: var(--sel); stroke-width: 1; pointer-events: none; }
+#overlay .node { fill: #fff; stroke: var(--sel); stroke-width: 2; pointer-events: none; }
+#overlay .node.curve { rx: 50%; }
+#overlay .node.on { fill: var(--sel); stroke: #fff; }
+#overlay .hline { stroke: #f59e0b; stroke-width: 1.5; pointer-events: none; }
+#overlay .hdot { fill: #ffd34d; stroke: #7a5a00; stroke-width: 2; pointer-events: none; }
+#overlay .region { fill: rgba(47,155,255,.10); stroke: var(--sel); stroke-width: 1; stroke-dasharray: 4 3; pointer-events: none; }
+#overlay .region.on { fill: rgba(34,197,94,.45); stroke: #16a34a; }
+#overlay .region.del { fill: rgba(229,83,75,.45); stroke: var(--danger); }
+#overlay .knife-line { fill: none; stroke: var(--danger); stroke-dasharray: 6 4; pointer-events: none; stroke-width: 2; }
+#overlay .eraser-line { fill: none; stroke: rgba(229,83,75,.35); stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.mgrid.tight { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
+.mgrid.tight .btn { min-height: 60px; font-size: 13px; }
