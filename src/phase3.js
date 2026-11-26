@@ -96,7 +96,7 @@ function prepared(app) {
   return app.doc.objects.filter((o) => app.selection.includes(o.id) && o.type !== 'image' && o.type !== 'group');
 }
 
-function shapeOp(app, kind, label) {
+export function shapeOp(app, kind, label) {
   const objs = prepared(app);
   if (objs.length < 2) return;
   const ds = objs.map((o) => worldD(o));
@@ -122,7 +122,7 @@ function shapeOp(app, kind, label) {
   app.render({ panels: true });
 }
 
-function breakApart(app, o) {
+export function breakApart(app, o) {
   const parts = islands(worldD(o));
   if (parts.length < 2) return toast('الشكل قطعة واحدة');
   const objs = parts.map((d, i) => pathObject(d, { name: `${o.name || 'شكل'} ${i + 1}`, style: clone(o.style), m: I.slice() }));

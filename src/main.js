@@ -3,7 +3,9 @@ import { App } from './ui/app.js';
 import { Canvas, isTyping } from './ui/canvas.js';
 import { h, btn, icon, toast, closeSheet, openSheet } from './ui/dom.js';
 import { renderProps, renderLayers } from './ui/panels.js';
-import { openFileMenu, exportDialog, importGraphic, importSVGText } from './ui/menus.js';
+import { openFileMenu, exportDialog, importGraphic, importSVGText, newProjectDialog, projectsDialog } from './ui/menus.js';
+import { CATS, catItems, renderCat, setRerender, openHome, closeHome, applyLook, openContextMenu, closeContext, installTooltips, Clip, flip, shortcutsSheet } from './ui/chrome.js';
+import { convertSelection } from './ui/panels.js';
 import { TOOLS, TOOLBAR } from './tools/index.js';
 import { Store } from './core/store.js';
 import { registerUserFont, ensureFont } from './core/fonts.js';
@@ -57,26 +59,28 @@ let canvas;
 function buildUI() {
   const root = document.getElementById('app');
   root.innerHTML = '';
-  const undoB = btn('undo', 'تراجع', () => app.undo(), { iconOnly: true });
-  const redoB = btn('redo', 'إعادة', () => app.redo(), { iconOnly: true });
+  applyLook(app);
+  const undoB = btn('undo', 'تراجع', () => app.undo(), { iconOnly: true, title: 'تراجع (Ctrl+Z)' });
+  const redoB = btn('redo', 'إعادة', () => app.redo(), { iconOnly: true, title: 'إعادة (Ctrl+Y)' });
   const zoomLbl = h('span', { class: 'zoomlbl' }, '100%');
   const nameLbl = h('span', { class: 'pname' }, app.projectName);
-  const installB = btn('install', 'تثبيت', () => doInstall(), { class: 'install hidden' });
-  const modeB = btn('laptop', 'وضع الواجهة', () => toggleMode(), { iconOnly: true, class: 'modebtn' });
+  const installB = btn('install', 'تثبيت', () => doInstall(), { class: 'install hidden', iconOnly: true });
   const propsB = btn('props', 'الخصائص', () => toggleDrawer('props'), { class: 'mobile-only', iconOnly: true });
   const layersB = btn('layers', 'الطبقات', () => toggleDrawer('layers'), { class: 'mobile-only', iconOnly: true });
+  const catbar = h('nav', { class: 'catbar', 'aria-label': 'قوائم الأدوات' });
 
   const top = h('header', { class: 'topbar' },
-    btn('menu', 'الملف', () => openFileMenu(app), { iconOnly: true }),
+    btn('home', 'الرئيسية', () => openHome(app), { iconOnly: true, class: 'homebtn', title: 'الرئيسية: جديد، فتح، حفظ، استيراد، تصدير، الإعدادات' }),
     h('div', { class: 'brand' }, h('b', {}, 'مِداد'), nameLbl),
+    h('div', { class: 'catslot laptop-only' }),
     h('div', { class: 'spacer' }),
     undoB, redoB,
     h('div', { class: 'zoombox laptop-only' },
       btn('zoomOut', 'تصغير', () => zoomBy(1 / 1.25), { iconOnly: true, class: 'ghost' }), zoomLbl,
       btn('zoomIn', 'تكبير', () => zoomBy(1.25), { iconOnly: true, class: 'ghost' })),
     btn('fit', 'ملاءمة الشاشة', () => canvas.fit(), { iconOnly: true, class: 'fitbtn' }),
-    installB, propsB, layersB, modeB,
-    btn('export', 'تصدير', () => exportDialog(app), { class: 'primary', iconOnly: false }));
+    installB, propsB, layersB,
+    btn('export', 'تصدير', () => exportDialog(app), { class: 'primary', iconOnly: true }));
 
   const toolbar = h('nav', { class: 'toolbar', 'aria-label': 'الأدوات' });
   const stage = h('section', { class: 'stage' });
@@ -89,23 +93,29 @@ function buildUI() {
       btn('close', 'إغلاق', () => toggleDrawer(null), { iconOnly: true, class: 'ghost small' })),
     h('div', { class: 'pane pane-props' }, props),
     h('div', { class: 'pane pane-layers' }, h('h3', { class: 'laptop-only' }, 'الطبقات'), layers));
-  const bottombar = h('nav', { class: 'bottombar', 'aria-label': 'الأدوات' });
+  const toolrow = h('nav', { class: 'toolrow', 'aria-label': 'الأدوات' });
+  const bottombar = h('div', { class: 'bottombar' }, toolrow);
   root.append(top, h('main', {}, toolbar, stage, side), bottombar);
 
   canvas = new Canvas(app, stage, TOOLS);
   window.midad.canvas = canvas;
+  stage.addEventListener('contextmenu', (e) => { e.preventDefault(); openContextMenu(app, canvas, e); });
 
+  // which category holds the current tool
+  const catOfTool = (t) => CATS.find((c) => catItems(app, c.id).some((i) => i.tool === t))?.id;
   const renderToolbars = () => {
-    const mk = (t) => btn(t.icon, t.label, () => app.setTool(t.id), { tool: t.id, active: app.tool === t.id, title: t.key ? `${t.label} (${t.key.toUpperCase()})` : t.label });
-    toolbar.innerHTML = '';
-    toolbar.append(...TOOLBAR.map(mk));
-    bottombar.innerHTML = '';
-    bottombar.append(...TOOLBAR.filter((t) => t.mobile).map(mk));
-    const extra = TOOLBAR.filter((t) => !t.mobile);
-    const cur = extra.find((t) => t.id === app.tool);
-    bottombar.append(btn(cur ? cur.icon : 'more', cur ? cur.label : 'المزيد', () => openSheet('كل الأدوات', h('div', { class: 'mgrid' },
-      TOOLBAR.map((t) => btn(t.icon, t.label, () => { closeSheet(); app.setTool(t.id); }, { active: app.tool === t.id })))), { active: !!cur, class: 'morebtn' }));
+    const cur = app.settings.cat || 'text';
+    catbar.innerHTML = '';
+    for (const c of CATS) {
+      const b = btn(c.icon, c.label, () => { app.settings.cat = c.id; app.saveSettings?.(); renderToolbars(); }, { active: cur === c.id, title: c.label, class: 'cat' });
+      catbar.append(b);
+    }
+    const slot = document.body.classList.contains('mobile') ? bottombar : top.querySelector('.catslot');
+    if (catbar.parentElement !== slot) slot.append(catbar);
+    renderCat(app, toolbar, cur);
+    renderCat(app, toolrow, cur, { horizontal: true });
   };
+  setRerender(() => renderToolbars());
   renderToolbars();
 
   const refreshPanels = () => {
@@ -117,7 +127,11 @@ function buildUI() {
   };
   app.on('panels', () => { if (!isTypingInPanel()) refreshPanels(); else app.pendingPanels = true; });
   app.on('history', () => { undoB.disabled = !app.undoStack.length; redoB.disabled = !app.redoStack.length; });
-  app.on('tool', () => { renderToolbars(); canvas.draw(); });
+  app.on('tool', (t) => { const c = catOfTool(t); if (c && c !== (app.settings.cat || 'text') && t !== 'select') app.settings.cat = c; renderToolbars(); canvas.draw(); });
+  app.on('selection', () => renderToolbars());
+  app.on('history', () => renderToolbars());
+  app.on('rebuildUI', async () => { await app.saveNow(); await Store.setMisc('settings', app.settings); location.reload(); });
+  app.on('applyMode', () => applyMode());
   app.on('project', () => { nameLbl.textContent = app.projectName; refreshPanels(); });
   app.on('project-name', () => { nameLbl.textContent = app.projectName; });
   app.on('zoom', (z) => { zoomLbl.textContent = `${Math.round(z * 100)}%`; });
@@ -125,7 +139,22 @@ function buildUI() {
     if (document.body.classList.contains('mobile')) toggleDrawer('props', true);
     refreshPanels();
     const ta = props.querySelector('textarea.textedit');
-    if (ta) { ta.focus(); if (opt?.selectAll) ta.select(); }
+    if (ta) {
+      ta.focus();
+      // only the placeholder text is selected (to be replaced); real text keeps the caret at the end
+      if (opt?.selectAll && ta.value === 'اكتب هنا') ta.select();
+      else { const n = ta.value.length; ta.setSelectionRange(n, n); }
+    }
+  });
+  app.on('newTextLayer', () => {
+    const last = app.lastTextProps || {};
+    const o = textObject({ text: 'اكتب هنا', fontId: last.fontId || 'amiri', size: last.size || Math.round(app.doc.width / 7), name: 'نص جديد' });
+    app.add(o);
+    const b = worldBounds(o);
+    o.m = translate((app.doc.width - b.w) / 2 - b.x, (app.doc.height - b.h) / 2 - b.y);
+    app.commit('طبقة نص جديدة');
+    app.render({ panels: true });
+    app.emit('editText', { selectAll: true });
   });
   app.on('group', () => groupSel());
   app.on('ungroup', () => ungroupSel());
@@ -138,8 +167,7 @@ function buildUI() {
     const m = app.settings.mode === 'auto' ? (window.innerWidth < 900 ? 'mobile' : 'laptop') : app.settings.mode;
     document.body.classList.toggle('mobile', m === 'mobile');
     document.body.classList.toggle('laptop', m === 'laptop');
-    modeB.replaceChildren(icon(m === 'mobile' ? 'phone' : 'laptop'));
-    modeB.title = m === 'mobile' ? 'وضع الجوال (اضغط للتبديل)' : 'وضع اللابتوب (اضغط للتبديل)';
+    renderToolbars();
     setTimeout(() => canvas.draw(), 50);
   };
   function toggleMode() {
@@ -178,14 +206,27 @@ function buildUI() {
     if (mod && k === 'z' && !e.shiftKey) { e.preventDefault(); app.undo(); return; }
     if (mod && (k === 'y' || (k === 'z' && e.shiftKey))) { e.preventDefault(); app.redo(); return; }
     if (mod && k === 'd') { e.preventDefault(); app.duplicateSelection(); return; }
+    if (mod && k === 'c') { e.preventDefault(); Clip.copy(app); return; }
+    if (mod && k === 'x') { e.preventDefault(); Clip.cut(app); return; }
+    if (mod && k === 'v') { e.preventDefault(); Clip.paste(app); return; }
+    if (mod && k === 's' && e.shiftKey) { e.preventDefault(); openHome(app); document.querySelectorAll('.hrow')[4]?.click(); return; }
     if (mod && k === 's') { e.preventDefault(); app.saveNow().then(() => toast('حُفظ')); return; }
+    if (mod && k === 'o' && e.shiftKey) { e.preventDefault(); convertSelection(app); return; }
+    if (mod && k === 'o') { e.preventDefault(); projectsDialog(app); return; }
+    if (mod && k === 'n') { e.preventDefault(); newProjectDialog(app); return; }
+    if (mod && k === 'e') { e.preventDefault(); exportDialog(app); return; }
+    if (mod && k === 'r') { e.preventDefault(); app.settings.rulers = !app.settings.rulers; app.saveSettings(); canvas.draw(); renderToolbars(); return; }
+    if (mod && (k === "'" || e.code === 'Quote')) { e.preventDefault(); app.settings.grid = !app.settings.grid; app.saveSettings(); canvas.draw(); renderToolbars(); return; }
+    if (mod && e.code === 'BracketRight') { e.preventDefault(); app.arrange(e.shiftKey ? 'up' : 'top'); return; }
+    if (mod && e.code === 'BracketLeft') { e.preventDefault(); app.arrange(e.shiftKey ? 'down' : 'bottom'); return; }
+    if (k === '?' || (e.shiftKey && e.code === 'Slash')) { shortcutsSheet(); return; }
     if (mod && k === 'a') { e.preventDefault(); app.select(app.doc.objects.filter((o) => !o.locked && o.visible !== false).map((o) => o.id)); return; }
     if (mod && k === 'g') { e.preventDefault(); if (e.shiftKey) ungroupSel(); else groupSel(); return; }
     if (mod && k === '0') { e.preventDefault(); canvas.fit(); return; }
     if (mod && (k === '=' || k === '+')) { e.preventDefault(); zoomBy(1.25); return; }
     if (mod && k === '-') { e.preventDefault(); zoomBy(0.8); return; }
     if (k === 'delete' || k === 'backspace') { if (app.tool === 'nodes' || app.tool === 'letters') { app.emit('deleteKey'); return; } e.preventDefault(); app.deleteSelection(); return; }
-    if (k === 'escape') { closeSheet(); if (app.tool !== 'select') app.setTool('select'); else app.select([]); return; }
+    if (k === 'escape') { closeSheet(); closeHome(); closeContext(); if (app.tool !== 'select') app.setTool('select'); else app.select([]); return; }
     if (k.startsWith('arrow') && app.selection.length) {
       e.preventDefault();
       const s = e.shiftKey ? 10 : 1;
@@ -195,7 +236,7 @@ function buildUI() {
       app.render(); clearTimeout(nudgeT); nudgeT = setTimeout(() => { app.commit('نقل'); app.render({ panels: true }); }, 400);
       return;
     }
-    if (!mod && !e.altKey) { const t = TOOLBAR.find((x) => x.key === k); if (t) app.setTool(t.id); }
+    if (!mod && !e.altKey) { const map = { k: 'madd' }; const t = TOOLBAR.find((x) => x.key === k && x.id !== 'kashida'); if (map[k]) app.setTool(map[k]); else if (t) app.setTool(t.id); }
   });
   let nudgeT;
 
@@ -206,6 +247,7 @@ function buildUI() {
     await handleFiles([...e.dataTransfer.files]);
   });
 
+  installTooltips();
   refreshPanels();
 }
 
@@ -279,8 +321,18 @@ function handleLaunchFiles() {
   }
 }
 
-window.addEventListener('beforeunload', () => { app.saveNow(); });
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') app.saveNow(); });
+window.addEventListener('beforeunload', () => { app.saveNow(); app.saveRecovery(true); });
+// safety copy every 90 s while working, and on any unexpected error
+setInterval(() => app.saveRecovery(), 90000);
+let lastErr = 0;
+const onCrash = (e) => {
+  console.error(e);
+  app.saveNow(); app.saveRecovery(true);
+  if (Date.now() - lastErr > 4000) { lastErr = Date.now(); toast('حدث خطأ في هذه العملية، وحُفظ عملك. تابع العمل أو تراجع خطوة.', 'error', 5000); }
+};
+window.addEventListener('error', (e) => onCrash(e.error || e.message));
+window.addEventListener('unhandledrejection', (e) => onCrash(e.reason));
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { app.saveNow(); app.saveRecovery(); } });
 
 boot().catch((e) => {
   console.error(e);

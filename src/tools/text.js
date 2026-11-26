@@ -13,7 +13,7 @@ export function keepAnchor(o, fn) {
   fn();
   const after = textLayout(o)?.width ?? 0;
   const dw = after - before;
-  if (!dw) return;
+  if (!dw || o.onPath) return;
   const k = o.align === 'left' ? 0 : o.align === 'center' ? 0.5 : 1;
   o.m = mul(o.m, translate(-dw * k, 0));
 }

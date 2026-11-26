@@ -42,6 +42,10 @@ export function textLayout(o) {
   return cached('L' + fh.id + textKey(o), () => layoutText(fh, o.text || ' ', o));
 }
 
+// Text-on-path bending (installed by the text-path module).
+let textPathHook = null;
+export function setTextPathHook(fn) { textPathHook = fn; }
+
 // Extra geometry providers registered by later modules (letters, kufi, ...)
 const providers = {};
 export function registerGeometry(type, fn) { providers[type] = fn; }
@@ -53,7 +57,9 @@ export function localD(o) {
     case 'text': {
       const fh = getFontSync(o.fontId) || getFontSync('amiri');
       if (!fh) return '';
-      return cached('D' + fh.id + textKey(o), () => layoutToD(fh, textLayout(o)));
+      const flat = cached('D' + fh.id + textKey(o), () => layoutToD(fh, textLayout(o)));
+      if (!o.onPath?.d || !textPathHook) return flat;
+      return cached('TP' + fh.id + textKey(o) + JSON.stringify(o.onPath), () => textPathHook(o, flat, fh, textLayout(o)));
     }
     case 'path': return o.d || '';
     case 'image': return `M0,0 L${o.w},0 L${o.w},${o.h} L0,${o.h} Z`;

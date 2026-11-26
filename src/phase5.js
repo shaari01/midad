@@ -6,6 +6,7 @@ import { registerGeometry, localD, cleanD } from './core/geometry.js';
 import { kufiD, kufiObject, resize, transformGrid, autoWrite } from './core/kufi.js';
 import { KufiTool, PenTool, WarpTool, warpState, applyWarp } from './tools/phase5-tools.js';
 import { WARP_MODES, defaultMesh } from './core/warp.js';
+import { warpIcon } from './phase6.js';
 import { pathObject, clone, translate } from './core/model.js';
 
 export function install(app) {
@@ -92,10 +93,10 @@ export function install(app) {
     const redraw = () => app.render();
     return section('غلاف وتشويه',
       h('p', { class: 'hint' }, st.mode === 'mesh' ? 'اسحب النقاط التسع لتشكيل الغلاف بحرية، ثم اضغط «تطبيق».' : 'اختر النوع والمقدار وشاهد المعاينة، ثم اضغط «تطبيق».'),
-      h('div', { class: 'chips' }, WARP_MODES.map(([k, l]) => h('button', {
-        type: 'button', class: 'chip' + (st.mode === k ? ' on' : ''),
+      h('div', { class: 'chips warpchips' }, WARP_MODES.map(([k, l]) => h('button', {
+        type: 'button', class: 'chip' + (st.mode === k ? ' on' : ''), title: l, 'aria-label': l, html: warpIcon(k),
         onClick: () => { st.mode = k; app.settings.warpMode = k; if (k === 'ring' && Math.abs(st.amount) < 0.1) st.amount = 0.5; app.render({ panels: true }); },
-      }, l))),
+      }))),
       st.mode !== 'square' && st.mode !== 'circle' && st.mode !== 'mesh'
         ? slider(st.mode === 'ring' ? 'انحناء القوس (من دورة كاملة)' : 'المقدار', Math.round(st.amount * 100), { min: st.mode === 'ring' ? -100 : -100, max: 100, unit: '%', onInput: (v) => { st.amount = v / 100; app.settings.warpAmount = st.amount; redraw(); } })
         : null,

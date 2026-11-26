@@ -4,12 +4,12 @@ import { registerTool } from './tools/index.js';
 import { registerSection, section, row } from './ui/panels.js';
 import { h, btn, slider, icon, toast } from './ui/dom.js';
 import { getFontSync, ensureFont, fontInfo } from './core/fonts.js';
-import { explode, relink, lettersD, alternatesFor, altGid, defaultT, splitDots } from './core/letters.js';
+import { explode, relink, lettersD, alternatesFor, altGid, defaultT, splitDots, itemPlaced } from './core/letters.js';
 import { LettersTool, lettersKeys } from './tools/letters.js';
 import { openFontPicker, previewSVG } from './ui/fontpicker.js';
 import { textLayout, P, hashStr } from './core/geometry.js';
 import { glyphCmds } from './core/shaper.js';
-import { toD } from './core/svgpath.js';
+import { toD, cmdsBBox } from './core/svgpath.js';
 import { uid } from './core/model.js';
 
 export function install(app) {
@@ -20,6 +20,12 @@ export function install(app) {
   });
   registerTool(LettersTool, { id: 'letters', icon: 'explode', label: 'الحروف', mobile: true, key: 'l' }, 'kashida');
   lettersKeys(app);
+
+  // the letters tool works directly on live text: it explodes it first
+  app.on('explodeText', (o) => explodeText(app, o));
+  app.on('tool', (t) => { if (t === 'letters' && app.one?.type === 'text') explodeText(app, app.one); });
+  app.on('panels', () => renderLettersBar(app));
+  app.on('selection', () => renderLettersBar(app));
 
   app.on('fontChanged', (o) => {
     if (o?.type !== 'letters') return;
@@ -59,7 +65,7 @@ export function install(app) {
   });
 }
 
-async function explodeText(app, o) {
+export async function explodeText(app, o) {
   const fh = await ensureFont(o.fontId);
   const w = explode(fh, o, textLayout(o));
   app.replace(o.id, w);
@@ -174,3 +180,41 @@ function detachDots(app, o, fh, it) {
 }
 
 export { previewSVG, hashStr };
+
+/* A strip of the word's pieces at the bottom of the screen (like Kelk /
+   «أنا محترف الخط»): tap pieces to select them, several at once. */
+function renderLettersBar(app) {
+  const stage = document.querySelector('.stage');
+  if (!stage) return;
+  let bar = stage.querySelector('.lettersbar');
+  const o = app.one;
+  if (!o || o.type !== 'letters') { bar?.remove(); return; }
+  const fh = getFontSync(o.fontId);
+  if (!fh) return;
+  if (!bar) { bar = h('div', { class: 'lettersbar' }); stage.append(bar); }
+  const sel = new Set(app.toolState.items || []);
+  const multi = !!app.settings.lettersMulti;
+  const pieces = [...o.items].sort((a, b) => (a.cluster ?? 0) - (b.cluster ?? 0) || (a.kind === 'mark') - (b.kind === 'mark'));
+  const chip = (it) => {
+    const cmds = itemPlaced(fh, o, it).cmds;
+    const d = toD(cmds);
+    const bb = cmdsBBox(cmds);
+    const s = Math.max(bb.w, bb.h, 1), pad = s * 0.12;
+    const svg = `<svg viewBox="${bb.x - pad} ${bb.y - pad} ${bb.w + pad * 2} ${bb.h + pad * 2}" width="40" height="40"><path d="${d}" fill="currentColor"/></svg>`;
+    return h('button', {
+      type: 'button', class: `lchip ${sel.has(it.id) ? 'on' : ''}`, html: svg,
+      title: it.kind === 'mark' ? 'تشكيل' : it.kind === 'kashida' ? 'كشيدة' : it.ch || 'حرف',
+      onClick: (e) => {
+        if (app.tool !== 'letters') app.setTool('letters');
+        const ids = app.toolState.items || [];
+        const add = multi || e.shiftKey || e.ctrlKey;
+        app.toolState.items = add ? (ids.includes(it.id) ? ids.filter((x) => x !== it.id) : [...ids, it.id]) : [it.id];
+        app.render({ panels: true });
+      },
+    });
+  };
+  bar.replaceChildren(
+    h('button', { type: 'button', class: `lchip tool ${multi ? 'on' : ''}`, title: 'تحديد متعدد: كل لمسة تضيف حرفًا أو تزيله', onClick: () => { app.settings.lettersMulti = !multi; app.saveSettings?.(); renderLettersBar(app); } }, icon('squareDashed', 22)),
+    h('button', { type: 'button', class: 'lchip tool', title: 'تحديد كل الحروف', onClick: () => { app.toolState.items = o.items.map((i) => i.id); if (app.tool !== 'letters') app.setTool('letters'); app.render({ panels: true }); } }, icon('layoutGrid', 22)),
+    ...pieces.map(chip));
+}

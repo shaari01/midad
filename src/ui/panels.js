@@ -96,7 +96,7 @@ export function loadImg(src) {
 }
 
 function textProps(app, o) {
-  const ta = h('textarea', { rows: 2, dir: 'rtl', class: 'textedit', value: o.text, spellcheck: false });
+  const ta = h('textarea', { rows: 3, dir: 'rtl', class: 'textedit', value: o.text, spellcheck: false, placeholder: 'اكتب النص هنا…' });
   ta.addEventListener('input', () => { keepAnchor(o, () => { o.text = ta.value; prune(o); }); app.render(); });
   ta.addEventListener('change', () => { app.commit('تعديل النص'); });
   ta.addEventListener('blur', () => { app.commit('تعديل النص'); });
@@ -265,6 +265,10 @@ export function renderLayers(app, host) {
   host.innerHTML = '';
   const objs = app.doc.objects;
   const list = h('ul', { class: 'layers' });
+  host.append(h('div', { class: 'layer-tools' },
+    btn('plus', 'طبقة نص جديدة', () => app.emit('newTextLayer'), { iconOnly: true, class: 'small' }),
+    btn('copy', 'تكرار الطبقة', () => app.duplicateSelection(), { iconOnly: true, class: 'small', disabled: !app.selection.length }),
+    btn('trash', 'حذف الطبقات المحددة', () => app.deleteSelection(), { iconOnly: true, class: 'small danger', disabled: !app.selection.length })));
   if (!objs.length) host.append(h('p', { class: 'hint' }, 'لا توجد طبقات بعد.'));
   [...objs].reverse().forEach((o) => {
     const sel = app.selection.includes(o.id);

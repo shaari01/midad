@@ -1,7 +1,7 @@
 // Browser scenarios per phase. Each run gets {page, vp, shot, expect, ctx}.
 import fs from 'node:fs';
 
-export const tool = (page, id) => page.locator(`button[data-tool="${id}"]:visible`).first().click();
+export const tool = async (page, id) => { const b = page.locator(`button[data-tool="${id}"]:visible`).first(); if (await b.count()) await b.click(); else await page.evaluate((t) => window.midad.app.setTool(t), id); };
 export const doc = (page) => page.evaluate(() => JSON.parse(JSON.stringify(window.midad.app.doc)));
 export const openProps = async (page, vp) => { if (vp === 'phone') { await page.evaluate(() => window.midad.toggleDrawer('props', true)); await page.waitForTimeout(350); } };
 export const closeDrawer = async (page, vp) => { if (vp === 'phone') { await page.evaluate(() => window.midad.toggleDrawer(null)); await page.waitForTimeout(350); } };
@@ -64,10 +64,10 @@ export const scenarios = [
       await closeDrawer(page, vp);
       await shot('ruqaa');
       // undo restores the previous font
-      await page.locator('button[aria-label="تراجع"]').click();
+      await page.locator('.topbar button[title^="تراجع"]').click();
       d = await doc(page);
       expect(d.objects[0].fontId === 'amiri', 'undo failed');
-      await page.locator('button[aria-label="إعادة"]').click();
+      await page.locator('.topbar button[title^="إعادة"]').click();
       d = await doc(page);
       expect(d.objects[0].fontId === 'arefruqaa', 'redo failed');
     },
@@ -118,7 +118,7 @@ export const scenarios = [
     async run({ page, expect }) {
       await fresh(page);
       await addText(page, 'خط');
-      await page.locator('.topbar button', { hasText: 'تصدير' }).click();
+      await page.locator('.topbar button[aria-label="تصدير"]').click();
       let f = await download(page, () => page.locator('.sheet button', { hasText: 'SVG كامل' }).click());
       const svg = f.data.toString();
       expect(svg.includes('<path') && svg.includes('viewBox="0 0 1080 1080"'), 'bad svg ' + f.name);
@@ -129,8 +129,8 @@ export const scenarios = [
       f = await download(page, () => page.locator('.sheet button', { hasText: 'PDF متجهي' }).click());
       expect(f.data.slice(0, 4).toString() === '%PDF', 'bad pdf');
       await page.keyboard.press('Escape');
-      await page.locator('.topbar button[aria-label="الملف"]').click();
-      f = await download(page, () => page.locator('.sheet button', { hasText: 'حفظ ملف المشروع' }).click());
+      await page.locator('.topbar .homebtn').click();
+      f = await download(page, () => page.locator('.homepanel .hrow', { hasText: 'حفظ ملف المشروع' }).click());
       const j = JSON.parse(f.data.toString());
       expect(j.format === 'midad' && j.doc.objects.length === 1, 'bad project file');
     },
@@ -188,8 +188,10 @@ scenarios.push({
     const moved = d.objects[0].items.filter((i) => i.t.dy < -20);
     expect(moved.length === 1, 'letter not moved');
     // stretch handle
+    await page.waitForTimeout(250);
     const sh = page.locator('#overlay [data-handle="stretchL"]');
     const b = await sh.boundingBox();
+    if (!b) console.log('handles:', await page.evaluate(() => [...document.querySelectorAll('#overlay [data-handle]')].map((x) => x.getAttribute('data-handle')).join(',') + ' sel=' + JSON.stringify(window.midad.app.toolState.items) + ' tool=' + window.midad.app.tool));
     await drag(page, [b.x + b.width / 2, b.y + b.height / 2], [b.x - 80, b.y + b.height / 2]);
     d = await doc(page);
     expect(d.objects[0].items.some((i) => i.t.stretchX > 40), 'stretch not applied');
@@ -253,7 +255,7 @@ scenarios.push({
     await page.waitForTimeout(150);
     const n1 = await page.locator('#overlay [data-handle^="n:"]').count();
     expect(n1 === n0 - 1, `delete node failed ${n0} → ${n1}`);
-    await page.locator('button[aria-label="تراجع"]').click();
+    await page.locator('.topbar button[title^="تراجع"]').click();
     await page.waitForTimeout(150);
     expect((await page.locator('#overlay [data-handle^="n:"]').count()) === n0, 'undo of node delete failed');
   },
@@ -268,12 +270,12 @@ scenarios.push({
     await clickBtn(page, 'دمج');
     let d = await doc(page);
     expect(d.objects.length === 1, 'unite failed');
-    await page.locator('button[aria-label="تراجع"]').click();
+    await page.locator('.topbar button[title^="تراجع"]').click();
     await page.evaluate(() => { const { app } = window.midad; app.select(app.doc.objects.map((o) => o.id)); });
     await clickBtn(page, 'تقسيم');
     d = await doc(page);
     expect(d.objects.length === 3, 'divide expected 3 got ' + d.objects.length);
-    await page.locator('button[aria-label="تراجع"]').click();
+    await page.locator('.topbar button[title^="تراجع"]').click();
     await page.evaluate(() => { const { app } = window.midad; app.select(app.doc.objects.map((o) => o.id)); app.setTool('builder'); });
     await closeDrawer(page, vp);
     const a = await screenOf(page, 350, 400), b = await screenOf(page, 550, 600);
@@ -401,7 +403,7 @@ scenarios.push({
     const id = await addText(page, 'سلام', { size: 260, m: [1, 0, 0, 1, 250, 300] });
     await page.evaluate((i) => { window.midad.app.select([i]); window.midad.app.setTool('warp'); }, id);
     await openProps(page, vp);
-    await page.locator('.side button.chip:visible').filter({ hasText: 'قوس' }).first().click();
+    await page.locator('.side button.chip:visible').filter({ has: page.locator('svg') }).and(page.locator('[title="قوس"]')).first().click();
     await shot('arc-preview');
     expect(await page.locator('#overlay .warpprev').count() === 1, 'no warp preview');
     await clickBtn(page, 'تطبيق');
@@ -409,7 +411,7 @@ scenarios.push({
     expect(d.objects[0].type === 'path' && d.objects[0].live?.type === 'text', 'warp did not produce path with live copy');
     // free mesh on the result
     await page.evaluate(() => window.midad.app.setTool('warp'));
-    await page.locator('.side button.chip:visible').filter({ hasText: 'غلاف حر' }).first().click();
+    await page.locator('.side button.chip:visible').filter({ has: page.locator('svg') }).and(page.locator('[title="غلاف حر (شبكة)"]')).first().click();
     await closeDrawer(page, vp);
     const hb = await page.locator('#overlay [data-handle="m4"]').boundingBox();
     const c = [hb.x + hb.width / 2, hb.y + hb.height / 2];
@@ -421,5 +423,144 @@ scenarios.push({
     expect(d.objects[0].d !== before, 'mesh warp did not change shape');
     await closeDrawer(page, vp);
     await shot('mesh');
+  },
+});
+
+/* ---------------------------- phase 6: Ali's notes ---------------------------- */
+const pathCount = async (page) => (await doc(page)).objects.filter((o) => o.type === 'path').length;
+
+scenarios.push({
+  phase: 6, id: 'trace', name: 'تحويل صورة شفافة إلى شكل قابل للتعديل',
+  async run({ page, vp, expect, shot }) {
+    await fresh(page);
+    await page.evaluate(() => {
+      const c = document.createElement('canvas'); c.width = 300; c.height = 300;
+      const g = c.getContext('2d'); g.fillStyle = '#b02020'; g.beginPath(); g.arc(150, 150, 100, 0, Math.PI * 2); g.fill();
+      g.clearRect(120, 120, 60, 60); // a hole
+      const { app } = window.midad;
+      const o = { id: 'img1', type: 'image', name: 'دائرة.png', visible: true, locked: false, src: c.toDataURL(), w: 600, h: 600, m: [1, 0, 0, 1, 240, 240], opacity: 1 };
+      app.add(o); app.select('img1'); app.commit('test'); app.render({ panels: true });
+    });
+    await openProps(page, vp);
+    await clickBtn(page, 'تحويل إلى شكل');
+    await page.waitForFunction(() => window.midad.app.doc.objects.some((o) => o.type === 'path'), null, { timeout: 8000 });
+    const p = (await doc(page)).objects.find((o) => o.type === 'path');
+    expect(p.live?.type === 'image', 'trace result should keep the image as a live copy');
+    expect((p.d.match(/M/g) || []).length >= 2, 'the hole should be traced as a second contour');
+    await closeDrawer(page, vp);
+    await shot('traced');
+  },
+});
+
+scenarios.push({
+  phase: 6, id: 'textpath', name: 'الكتابة على دائرة مع بقاء النص حيًّا',
+  async run({ page, vp, expect, shot }) {
+    await fresh(page);
+    const id = await addText(page, 'بسم الله الرحمن الرحيم', { size: 90, m: [1, 0, 0, 1, 250, 400] });
+    await page.evaluate((i) => { window.midad.app.select(i); window.midad.app.render({ panels: true }); }, id);
+    await openProps(page, vp);
+    await clickBtn(page, 'دائرة');
+    let o = (await doc(page)).objects[0];
+    expect(o.onPath?.d, 'text not placed on a path');
+    const w0 = await page.evaluate(() => window.midad.app.one && document.querySelector('#content path')?.getAttribute('d')?.length);
+    await page.evaluate(() => { const a = window.midad.app; a.one.size = 120; a.commit('size'); a.render({ panels: true }); });
+    o = (await doc(page)).objects[0];
+    expect(o.type === 'text' && o.onPath && o.size === 120, 'text on path should stay live text');
+    expect(w0 > 100, 'nothing drawn');
+    await closeDrawer(page, vp);
+    await shot('circle');
+  },
+});
+
+scenarios.push({
+  phase: 6, id: 'glyphs', name: 'إدراج حرف من الخط كشكل',
+  async run({ page, expect, vp, shot }) {
+    await fresh(page);
+    await page.locator('.catbar button[title="نص"]:visible').first().click();
+    const ok = await page.evaluate(async () => { const b = [...document.querySelectorAll('button')].find((x) => x.title?.startsWith('حروف الخط كأشكال') && x.offsetParent); if (b) { b.click(); return true; } return false; });
+    expect(ok, 'glyph button not found in the text category');
+    await page.waitForSelector('.glyphgrid .glyph', { timeout: 8000 });
+    expect(await page.locator('.glyphgrid .glyph').count() >= 2, 'few letter forms');
+    await shot('sheet');
+    await page.locator('.glyphgrid .glyph').nth(1).click();
+    await page.waitForTimeout(150);
+    expect(await pathCount(page) === 1, 'glyph not inserted as a path');
+  },
+});
+
+scenarios.push({
+  phase: 6, id: 'madd', name: 'مداد: مدّ شكل أفقيًا وعموديًا',
+  async run({ page, expect, shot }) {
+    await fresh(page);
+    const [a] = await addSquares(page);
+    await page.evaluate((i) => { window.midad.app.select(i); window.midad.app.setTool('madd'); window.midad.app.settings.maddAxis = 'x'; }, a);
+    const w = async () => page.evaluate(() => { const b = window.midad.app.one; const xs = b.d.match(/-?\d+(\.\d+)?/g).map(Number).filter((_, i) => i % 2 === 0); return Math.max(...xs) - Math.min(...xs); });
+    const w0 = await w();
+    const p0 = await screenOf(page, 450, 500), p1 = await screenOf(page, 600, 500);
+    await drag(page, p0, p1);
+    const w1 = await w();
+    expect(w1 > w0 + 100, `horizontal madd failed ${w0} → ${w1}`);
+    await shot('stretched');
+  },
+});
+
+scenarios.push({
+  phase: 6, id: 'bezier', name: 'المرسمة: رسم شكل مغلق بنقاط حادة ومنحنية',
+  viewports: ['laptop'],
+  async run({ page, expect, shot }) {
+    await fresh(page);
+    await page.evaluate(() => window.midad.app.setTool('bezier'));
+    const pts = [[300, 300], [700, 300], [700, 700]];
+    for (const [x, y] of pts) { const [sx, sy] = await screenOf(page, x, y); await page.mouse.click(sx, sy); await page.waitForTimeout(60); }
+    const [qx, qy] = await screenOf(page, 300, 700);
+    await drag(page, [qx, qy], [qx - 60, qy + 30]);
+    const [fx, fy] = await screenOf(page, 300, 300);
+    await page.mouse.click(fx, fy);
+    await page.waitForTimeout(150);
+    const p = (await doc(page)).objects.find((o) => o.type === 'path');
+    expect(p && /z/i.test(p.d) && /c/i.test(p.d), 'closed curved path not created: ' + JSON.stringify((await doc(page)).objects.map((o) => o.d)) + ' tool=' + await page.evaluate(() => window.midad.app.tool));
+    await shot('drawn');
+  },
+});
+
+scenarios.push({
+  phase: 6, id: 'chrome', name: 'القائمة الرئيسية والإعدادات والقائمة اليمنى وطبقة جديدة',
+  async run({ page, vp, expect, shot }) {
+    await fresh(page);
+    await page.locator('.topbar .homebtn').click();
+    await page.waitForSelector('.homepanel .hrow');
+    expect(await page.locator('.homepanel .hrow').count() >= 10, 'home menu rows missing');
+    await shot('home');
+    await page.locator('.homepanel .hrow').filter({ hasText: 'الإعدادات' }).click();
+    await page.locator('.sheet select').nth(1).selectOption('light');
+    expect(await page.evaluate(() => document.documentElement.dataset.theme) === 'light', 'theme did not switch');
+    await page.locator('.sheet select').nth(1).selectOption('dark');
+    await page.keyboard.press('Escape');
+    // layers +
+    if (vp === 'phone') { await page.evaluate(() => window.midad.toggleDrawer('layers', true)); await page.waitForTimeout(350); }
+    await page.locator('button[aria-label="طبقة نص جديدة"]:visible, button[title="طبقة نص جديدة"]:visible').first().click();
+    await page.waitForTimeout(200);
+    const d = await doc(page);
+    expect(d.objects.length === 1 && d.objects[0].type === 'text', 'new text layer not added');
+    if (vp === 'phone') { await page.evaluate(() => window.midad.toggleDrawer('props', true)); await page.waitForTimeout(350); }
+    const tv = await page.locator('textarea.textedit:visible').first().inputValue();
+    expect(tv === d.objects[0].text, `side text box shows "${tv}" instead of the text`);
+    await page.locator('textarea.textedit:visible').first().fill('محمد');
+    expect((await doc(page)).objects[0].text === 'محمد', 'typing in the side box did not change the text');
+    if (vp === 'phone') await closeDrawer(page, vp);
+    // right-click menu (laptop) / letters bar (both)
+    if (vp === 'laptop') {
+      const [sx, sy] = await screenOf(page, 540, 540);
+      await page.mouse.click(sx, sy, { button: 'right' });
+      await page.waitForSelector('.ctxmenu .cmi');
+      expect(await page.locator('.ctxmenu .cmi').count() >= 5, 'context menu too small');
+      await shot('context');
+      await page.locator('.ctxmenu .cmi').filter({ hasText: 'تكرار' }).click();
+      expect((await doc(page)).objects.length === 2, 'duplicate from context menu failed');
+    }
+    await page.evaluate(() => { const a = window.midad.app; a.select(a.doc.objects[0].id); a.setTool('letters'); });
+    await page.waitForSelector('.lettersbar .lchip', { timeout: 5000 });
+    expect((await doc(page)).objects.some((o) => o.type === 'letters'), 'text was not exploded automatically');
+    await shot('lettersbar');
   },
 });

@@ -59,7 +59,14 @@ export class App {
     const snap = JSON.stringify(this.doc);
     if (snap === this.lastSnap) return false;
     this.undoStack.push({ snap: this.lastSnap, label, sel: this.selection.slice() });
+    // keep memory bounded on phones: at most 300 steps / ~120 MB of history
+    let total = 0;
+    for (let i = this.undoStack.length - 1; i >= 0; i--) {
+      total += this.undoStack[i].snap.length;
+      if (total > 60e6 || this.undoStack.length - i > 300) { this.undoStack.splice(0, i); break; }
+    }
     this.redoStack = [];
+    this.dirtySinceRecovery = true;
     this.lastSnap = snap;
     this.emit('history');
     this.scheduleSave();
@@ -167,6 +174,16 @@ export class App {
       await Store.setMisc('lastProject', this.projectId);
       this.emit('saved');
     } catch (e) { console.warn('autosave failed', e); }
+  }
+
+  /** Rolling safety copy «نسخة من …», separate from the project itself. */
+  async saveRecovery(force = false) {
+    if (!force && !this.dirtySinceRecovery) return;
+    if (!this.doc?.objects?.length || String(this.projectId).startsWith('rec-')) return;
+    this.dirtySinceRecovery = false;
+    try {
+      await Store.saveProject({ id: 'rec-' + this.projectId, name: 'نسخة من ' + this.projectName, updated: Date.now(), doc: this.doc, recovery: true, thumb: null });
+    } catch (e) { console.warn('recovery save failed', e); }
   }
 
   async openProject(rec) {

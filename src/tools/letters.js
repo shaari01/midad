@@ -66,7 +66,9 @@ export const LettersTool = {
     const o = this.target(app);
     if (!o) {
       const hit = cv.hitObject(ev.e, ev.x, ev.y);
-      if (hit?.type === 'letters') { app.select(hit.id); app.setTool('letters'); } else toast('اختر كلمة مفكوكة (حروف حيّة) أولًا');
+      if (hit?.type === 'letters') { app.select(hit.id); app.setTool('letters'); return; }
+      if (hit?.type === 'text') { app.select(hit.id); app.emit('explodeText', hit); return; }
+      toast('المس كلمة لفكّها إلى حروف');
       return;
     }
     const fh = getFontSync(o.fontId);
@@ -85,7 +87,7 @@ export const LettersTool = {
     const it = this.hitItem(cv, o, ev.x, ev.y);
     if (it) {
       const ids = app.toolState.items || [];
-      if (ev.shift || ev.ctrl) app.toolState.items = ids.includes(it.id) ? ids.filter((i) => i !== it.id) : [...ids, it.id];
+      if (ev.shift || ev.ctrl || app.settings.lettersMulti) app.toolState.items = ids.includes(it.id) ? ids.filter((i) => i !== it.id) : [...ids, it.id];
       else if (!ids.includes(it.id)) app.toolState.items = [it.id];
       const items = this.selItems(app);
       this.op = { kind: 'move', start: local, t0s: items.map((i) => ({ ...i.t })), items };

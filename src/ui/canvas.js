@@ -100,11 +100,20 @@ export class Canvas {
 
   drawGrid() {
     const s = this.app.settings;
-    if (!s.grid) { this.gridG.innerHTML = ''; return; }
-    const g = s.gridSize;
     const { width: W, height: H } = this.app.doc;
     const sw = 1 / this.z;
-    this.gridG.innerHTML = `<defs><pattern id="gridp" width="${g}" height="${g}" patternUnits="userSpaceOnUse"><path d="M${g},0 V${g} H0" fill="none" stroke="#3b82f6" stroke-opacity=".28" stroke-width="${sw}"/></pattern></defs><rect width="${W}" height="${H}" fill="url(#gridp)" style="pointer-events:none"/>`;
+    let persp = '';
+    if (s.persp) {
+      // one-point perspective: horizon at 40%, vanishing point in the middle
+      const vx = W / 2, vy = H * (s.perspHorizon ?? 0.4);
+      let d = `M0,${vy} L${W},${vy} `;
+      for (let i = -12; i <= 12; i++) { const x = vx + (i * W) / 8; d += `M${vx},${vy} L${x},${H} `; }
+      for (let k = 1; k <= 10; k++) { const t = Math.pow(k / 10, 2); const y = vy + (H - vy) * t; d += `M0,${y} L${W},${y} `; }
+      persp = `<path d="${d}" fill="none" stroke="#e08a1e" stroke-opacity=".55" stroke-width="${sw}" style="pointer-events:none"/>`;
+    }
+    if (!s.grid) { this.gridG.innerHTML = persp ? `<svg overflow="hidden" width="${W}" height="${H}">${persp}</svg>` : ''; return; }
+    const g = s.gridSize;
+    this.gridG.innerHTML = `<svg overflow="hidden" width="${W}" height="${H}">${persp}</svg><defs><pattern id="gridp" width="${g}" height="${g}" patternUnits="userSpaceOnUse"><path d="M${g},0 V${g} H0" fill="none" stroke="#3b82f6" stroke-opacity=".28" stroke-width="${sw}"/></pattern></defs><rect width="${W}" height="${H}" fill="url(#gridp)" style="pointer-events:none"/>`;
   }
 
   drawGuides() {
@@ -117,7 +126,9 @@ export class Canvas {
 
   drawOverlay() {
     const t = this.tool;
-    this.overlay.innerHTML = t.overlay ? t.overlay(this) || '' : '';
+    let ov = '';
+    try { ov = t.overlay ? t.overlay(this) || '' : ''; } catch (err) { console.error(err); }
+    this.overlay.innerHTML = ov;
   }
 
   drawRulers() {
@@ -194,6 +205,16 @@ export class Canvas {
     return { dx: best.dx, dy: best.dy, lines };
   }
 
+  /** Run a tool handler; a failing tool never freezes the canvas. */
+  safe(name, ev) {
+    try { this.tool[name]?.(ev, this); } catch (err) {
+      console.error(err);
+      try { this.tool.cancel?.(this); } catch { /* ignore */ }
+      this.drag = null;
+      window.dispatchEvent(new ErrorEvent('error', { error: err, message: String(err) }));
+    }
+  }
+
   ev(e) {
     const r = this.svg.getBoundingClientRect();
     const sx = e.clientX - r.left, sy = e.clientY - r.top;
@@ -227,19 +248,21 @@ export class Canvas {
         this.drag = { kind: 'guide', index: +guide.getAttribute('data-guide') };
         return;
       }
+      // right button: leave it to the context menu (it selects what is under the pointer)
+      if (e.button === 2) return;
       // middle mouse / space / pan tool → pan
       if (e.button === 1 || this.spaceDown || this.app.tool === 'pan') {
         this.drag = { kind: 'pan', sx: ev.sx, sy: ev.sy, tx: this.tx, ty: this.ty };
         return;
       }
       this.drag = { kind: 'tool' };
-      this.tool.down?.(ev, this);
+      this.safe('down', ev);
     });
     svg.addEventListener('pointermove', (e) => {
       if (this.pointers.has(e.pointerId)) this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (this.gesture) { this.gesture.move(); return; }
       const ev = this.ev(e);
-      if (!this.drag) { this.tool.hover?.(ev, this); return; }
+      if (!this.drag) { this.safe('hover', ev); return; }
       if (this.drag.kind === 'pan') {
         this.tx = this.drag.tx + ev.sx - this.drag.sx;
         this.ty = this.drag.ty + ev.sy - this.drag.sy;
@@ -250,8 +273,8 @@ export class Canvas {
         this.drag.lastScreen = ev;
       } else if (this.drag.kind === 'tool') {
         const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [];
-        if (evs.length > 1 && this.tool.wantsCoalesced) for (const ce of evs) this.tool.move?.(this.ev(ce), this);
-        else this.tool.move?.(ev, this);
+        if (evs.length > 1 && this.tool.wantsCoalesced) for (const ce of evs) this.safe('move', this.ev(ce));
+        else this.safe('move', ev);
       }
     });
     const up = (e) => {
@@ -268,7 +291,7 @@ export class Canvas {
         if (g && ((g.axis === 'y' && ev.sy < RULER) || (g.axis === 'x' && ev.sx > r.width - RULER))) this.app.doc.guides.splice(d.index, 1);
         this.app.commit('دليل');
         this.draw();
-      } else if (d.kind === 'tool') this.tool.up?.(ev, this);
+      } else if (d.kind === 'tool') this.safe('up', ev);
     };
     svg.addEventListener('pointerup', up);
     svg.addEventListener('pointercancel', (e) => { this.pointers.delete(e.pointerId); this.tool.cancel?.(this); this.drag = null; if (!this.pointers.size) this.gesture = null; });
@@ -285,7 +308,7 @@ export class Canvas {
         this.tx -= e.shiftKey ? e.deltaY : e.deltaX; this.ty -= e.shiftKey ? 0 : e.deltaY; this.draw();
       }
     }, { passive: false });
-    svg.addEventListener('dblclick', (e) => { const ev = this.ev(e); this.tool.dbl?.(ev, this); });
+    svg.addEventListener('dblclick', (e) => { const ev = this.ev(e); this.safe('dbl', ev); });
     window.addEventListener('keydown', (e) => { if (e.code === 'Space' && !isTyping(e)) { this.spaceDown = true; } });
     window.addEventListener('keyup', (e) => { if (e.code === 'Space') this.spaceDown = false; });
   }

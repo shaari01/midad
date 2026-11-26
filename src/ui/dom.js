@@ -1,5 +1,6 @@
 // Tiny DOM helpers + icons + toasts + sheets.
 import { ICONS, FALLBACK } from './icons.js';
+import { tr } from './i18n.js';
 
 export function h(tag, attrs = {}, ...kids) {
   const el = document.createElement(tag);
@@ -9,12 +10,14 @@ export function h(tag, attrs = {}, ...kids) {
     else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v);
     else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2).toLowerCase(), v);
     else if (k === 'html') el.innerHTML = v;
+    else if (k === 'value') el.value = v;
+    else if ((k === 'title' || k === 'aria-label' || k === 'placeholder') && typeof v === 'string') el.setAttribute(k, tr(v));
     else if (k in el && typeof v !== 'string') el[k] = v;
     else el.setAttribute(k, v === true ? '' : v);
   }
   for (const c of kids.flat(Infinity)) {
     if (c == null || c === false) continue;
-    el.append(c instanceof Node ? c : document.createTextNode(String(c)));
+    el.append(c instanceof Node ? c : document.createTextNode(tr(String(c))));
   }
   return el;
 }
@@ -41,7 +44,7 @@ let toastTimer;
 export function toast(msg, kind = 'info', ms = 2600) {
   let t = document.getElementById('toast');
   if (!t) { t = h('div', { id: 'toast', role: 'status' }); document.body.append(t); }
-  t.textContent = msg;
+  t.textContent = tr(msg);
   t.className = `show ${kind}`;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { t.className = ''; }, ms);

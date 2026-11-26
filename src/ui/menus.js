@@ -30,13 +30,13 @@ export function openFileMenu(app) {
   openSheet('الملف', body);
 }
 
-function newProjectDialog(app) {
+export function newProjectDialog(app) {
   const sizes = [[1080, 1080, 'مربع (منشور)'], [1080, 1350, 'عمودي'], [1920, 1080, 'أفقي'], [2480, 3508, 'A4 طباعة'], [4000, 4000, 'شعار كبير']];
   openSheet('مشروع جديد', h('div', { class: 'mgrid' }, sizes.map(([w, hh, l]) =>
     btn(null, `${l} ${w}×${hh}`, async () => { await app.saveNow(); await app.newProject(w, hh); closeSheet(); toast('مشروع جديد'); }))));
 }
 
-async function projectsDialog(app) {
+export async function projectsDialog(app) {
   await app.saveNow();
   const list = await Store.listProjects();
   const grid = h('div', { class: 'projects' }, list.map((p) => h('div', { class: `pcard ${p.id === app.projectId ? 'on' : ''}` },
@@ -59,7 +59,7 @@ function confirmInline(host, msg) {
   return false;
 }
 
-async function saveProjectFile(app) {
+export async function saveProjectFile(app) {
   // embed user fonts that the project uses so the file is self-contained
   const used = new Set();
   JSON.stringify(app.doc, (k, v) => { if (k === 'fontId') used.add(v); return v; });
@@ -70,7 +70,7 @@ async function saveProjectFile(app) {
   toast('حُفظ ملف المشروع');
 }
 
-async function openProjectFile(app) {
+export async function openProjectFile(app) {
   const [f] = await pickFile('.midad,.json,application/json');
   if (!f) return;
   try {
@@ -178,7 +178,7 @@ async function sendAnimation(app) {
   } catch (e) { console.error(e); toast('تعذّر الإرسال', 'error'); }
 }
 
-function aboutDialog() {
+export function aboutDialog() {
   openSheet('عن مِداد', h('div', { class: 'about' },
     h('p', {}, 'مِداد: برنامج شخصي للخط العربي والتركيبات الخطية. يعمل بلا إنترنت بعد أول تحميل.'),
     h('h4', {}, 'الخطوط المضمّنة (كلها برخصة SIL OFL 1.1)'),

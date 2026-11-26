@@ -89,7 +89,12 @@ export function warpD(d, { mode = 'arc', amount = 0.5, mesh = null, box = null, 
   if (!d) return '';
   const b = box || boxOf(d);
   const step = Math.max(b.w, b.h) / 160 || 1;
-  const f = mapper(mode, amount, b, mesh);
+  return mapD(d, mapper(mode, amount, b, mesh), step, smooth);
+}
+
+/** Map every point of a path through f (dense sampling, then smoothing). */
+export function mapD(d, f, step, smooth = true) {
+  if (!d) return '';
   const cont = sampleContours(d, step);
   const r = (n) => Math.round(n * 100) / 100;
   const raw = cont.map(({ pts, closed }) => 'M' + pts.map((p) => { const [x, y] = f(p); return `${r(x)},${r(y)}`; }).join(' L') + (closed ? ' Z' : '')).join(' ');
