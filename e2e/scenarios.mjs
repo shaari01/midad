@@ -618,3 +618,53 @@ scenarios.push({
     await shot('compact');
   },
 });
+
+scenarios.push({
+  phase: 7, id: 'library', name: 'مكتبتي: حفظ وحذف الأنماط والملصقات والصور',
+  async run({ page, vp, expect, shot }) {
+    await fresh(page);
+    const id = await addText(page, 'خط', { size: 300, m: [1, 0, 0, 1, 300, 300] });
+    await page.evaluate((i) => { window.midad.app.select(i); window.midad.app.render({ panels: true }); }, id);
+    await openProps(page, vp);
+    // save the current style, then delete it
+    await page.locator('.side .preset.add:visible').click();
+    await page.waitForSelector('.side .preset.mine');
+    expect(await page.locator('.side .preset.mine').count() === 1, 'style not saved');
+    await page.locator('.side .preset.mine .libdel').click();
+    await page.waitForTimeout(150);
+    expect(await page.locator('.side .preset.mine').count() === 0, 'style not deleted');
+    await closeDrawer(page, vp);
+    // stickers
+    await page.locator('.catbar button[title="أدوات"]:visible').first().click();
+    await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.title?.startsWith('مكتبتي') && b.offsetParent).click());
+    await page.waitForSelector('.libtabs');
+    await page.locator('.sheet button').filter({ hasText: 'حفظ المحدد كملصق' }).click();
+    await page.waitForSelector('.libgrid .libcard');
+    await shot('stickers');
+    await page.locator('.libgrid .libthumb').first().click();
+    await page.waitForTimeout(200);
+    expect(await page.locator('.pvbar:visible').count() === 1, 'sticker insert has no preview');
+    await page.locator('.pvbar .pvok').click();
+    expect((await doc(page)).objects.length === 2, 'sticker not inserted');
+    // images: add one from a file, then delete it
+    await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.title?.startsWith('مكتبتي') && b.offsetParent).click());
+    await page.locator('.libtabs .chip').filter({ hasText: 'الصور' }).click();
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+    const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.locator('.sheet button').filter({ hasText: 'إضافة صور' }).click()]);
+    await fc.setFiles({ name: 'نقطة.png', mimeType: 'image/png', buffer: png });
+    await page.waitForSelector('.libgrid .libcard');
+    await page.locator('.libgrid .libdel').first().click();
+    await page.waitForTimeout(200);
+    expect(await page.locator('.libgrid .libcard').count() === 0, 'image not deleted');
+    // the sticker is still in the library after a reload
+    await page.reload();
+    await page.waitForFunction(() => window.midad?.canvas);
+    await page.waitForTimeout(400);
+    await page.locator('.catbar button[title="أدوات"]:visible').first().click();
+    await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.title?.startsWith('مكتبتي') && b.offsetParent).click());
+    await page.waitForSelector('.libgrid .libcard');
+    await page.locator('.libgrid .libdel').first().click();
+    await page.waitForTimeout(200);
+    expect(await page.locator('.libgrid .libcard').count() === 0, 'sticker not deleted');
+  },
+});

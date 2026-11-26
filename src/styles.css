@@ -382,3 +382,27 @@ body.mobile .side .tabs { padding: 4px 6px; gap: 4px; }
 .preset { min-height: 50px; padding: 4px 2px; font-size: 11px; }
 .preset svg { max-height: 30px; }
 .preset .pv { font-size: 24px; }
+
+/* ---------- Samsung Video Editor refinement: small thin icons, flat groups ---------- */
+:root { --ic: 20px; }
+.btn .ic svg { stroke-width: 1.6; }
+.toolbar .btn, .toolrow .btn, .catbar .btn { min-height: 40px; min-width: 40px; }
+.toolrow .btn { min-width: 42px; }
+body.mobile .catbar .btn { min-height: 40px; }
+.topbar .btn { min-height: 40px; min-width: 40px; }
+.slider .srow { grid-template-columns: 28px 1fr 28px 58px; gap: 4px; }
+.sstep { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line); background: transparent; color: var(--text); font-size: 18px; line-height: 1; cursor: pointer; padding: 0; }
+/* «مكتبتي» */
+.libtabs { margin-bottom: 8px; }
+.libgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; max-height: 52vh; overflow-y: auto; margin-top: 8px; }
+.libcard { position: relative; }
+.libthumb { width: 100%; aspect-ratio: 1; display: grid; place-items: center; padding: 6px; border-radius: 10px; border: 1px solid var(--line); background: #fbf8f1 repeating-conic-gradient(#eee8da 0 25%, transparent 0 50%) 0 0 / 14px 14px; cursor: pointer; }
+.libthumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.libthumb .pv { font-size: 28px; font-weight: 900; }
+.libdel { position: absolute; top: -6px; inset-inline-end: -6px; width: 24px; height: 24px; border-radius: 50%; border: 0; background: #b3261e; color: #fff; font-size: 16px; line-height: 1; cursor: pointer; padding: 0; }
+.preset.mine { position: relative; padding: 0; }
+.preset.mine .pbody { all: unset; display: grid; justify-items: center; gap: 2px; padding: 4px 2px; cursor: pointer; width: 100%; }
+.preset.add { border-style: dashed; }
+.sheet .chip { min-height: 32px; padding: 2px 10px; font-size: 13px; }
+.sheet .btn.small { min-height: 36px; font-size: 13px; }
+.sheet h2, .sheet .sheethead { font-size: 17px; }

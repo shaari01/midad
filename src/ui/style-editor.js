@@ -3,6 +3,7 @@
 // / outside, cumulative), contour, shadow, glow, extrude, presets and the
 // personal colour library.
 import { h, btn, slider, colorInput, field, select, toast, pickFile } from './dom.js';
+import { Library, saveStyle, deleteStyle, setPreviewCSS } from './library.js';
 import { section, row } from './panels.js';
 import { PATTERNS } from '../core/render.js';
 import { Store } from '../core/store.js';
@@ -47,7 +48,13 @@ export function styleEditor(app, objs) {
   const presets = section('أنماط جاهزة',
     h('div', { class: 'presets' }, PRESETS.map((p) => h('button', {
       type: 'button', class: 'preset', onClick: () => { each((s) => Object.assign(s, JSON.parse(JSON.stringify(p.style)))); commit('نمط جاهز'); },
-    }, h('span', { class: 'pv', style: previewCSS(p.style) }, 'خط'), h('small', {}, p.name)))));
+    }, h('span', { class: 'pv', style: previewCSS(p.style) }, 'خط'), h('small', {}, p.name))),
+    // the user's own saved styles (add / delete)
+    Library.styles.map((p) => h('div', { class: 'preset mine' },
+      h('button', { type: 'button', class: 'pbody', onClick: () => { each((s) => Object.assign(s, JSON.parse(JSON.stringify(p.style)))); commit('نمط من مكتبتي'); } },
+        h('span', { class: 'pv', style: previewCSS(p.style) }, 'خط'), h('small', {}, p.name)),
+      h('button', { type: 'button', class: 'libdel', title: 'حذف من مكتبتي', 'aria-label': 'حذف من مكتبتي', onClick: () => deleteStyle(app, p.id) }, '×'))),
+    h('button', { type: 'button', class: 'preset add', title: 'احفظ تنسيق المحدد في مكتبتي', onClick: () => saveStyle(app, st) }, h('span', { class: 'pv' }, '+'), h('small', {}, 'حفظ نمطي'))));
 
   /* ---------- fills ---------- */
   const fillCards = fills.map((f, i) => fillCard(app, objs, f, i, each, live, commit));
@@ -81,6 +88,7 @@ export function styleEditor(app, objs) {
   return h('div', {}, presets, fillSec, strokeSec, ...fx, colorLibrary(app, objs, each, commit), ...more.map((fn) => fn(app, objs)).filter(Boolean), section('', opacity));
 }
 
+setPreviewCSS((s) => previewCSS(s));
 function previewCSS(s) {
   const f = s.fills?.[0];
   let color = '#111';

@@ -75,7 +75,18 @@ export function slider(label, value, { min = 0, max = 100, step = 1, unit = '', 
   rng.addEventListener('input', () => { num.value = round(rng.value); fire(rng.value, false); });
   rng.addEventListener('change', () => fire(rng.value, true));
   num.addEventListener('change', () => { rng.value = num.value; fire(num.value, true); });
-  return h('div', { class: 'field slider' }, h('span', { class: 'flabel' }, label, unit ? h('small', {}, ` (${unit})`) : null), h('div', { class: 'srow' }, guardRange(rng, num, fire), num));
+  return h('div', { class: 'field slider' }, h('span', { class: 'flabel' }, label, unit ? h('small', {}, ` (${unit})`) : null), h('div', { class: 'srow' }, stepBtn(rng, num, fire, -1), guardRange(rng, num, fire), stepBtn(rng, num, fire, 1), num));
+}
+
+/** − / + buttons at the ends of a slider for exact steps with a finger. */
+function stepBtn(rng, num, fire, dir) {
+  const b = h('button', { type: 'button', class: 'sstep', 'aria-label': dir > 0 ? 'زيادة' : 'إنقاص', title: dir > 0 ? 'زيادة' : 'إنقاص' }, dir > 0 ? '+' : '−');
+  b.addEventListener('click', () => {
+    const min = Number(rng.min), max = Number(rng.max), step = Number(rng.step) || 1;
+    const v = Math.min(max, Math.max(min, Math.round((Number(rng.value) + dir * step) / step) * step));
+    rng.value = v; num.value = round(v); fire(v, true);
+  });
+  return b;
 }
 
 /** On touch screens a range only moves after a clear sideways drag, so

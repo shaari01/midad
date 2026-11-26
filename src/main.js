@@ -14,6 +14,7 @@ import { textObject, groupObject, translate, mul, invert, uid } from './core/mod
 import { preloadFonts, worldBounds, unionBounds } from './core/geometry.js';
 import { toSVG, svgToPNG } from './core/export.js';
 import { loadPhases } from './phases.js';
+import { loadLibrary } from './ui/library.js';
 
 const app = new App();
 window.midad = { app };
@@ -250,6 +251,7 @@ function buildUI() {
   });
 
   installTooltips();
+  loadLibrary().then(() => app.render({ panels: true })).catch(() => {});
 
   // apply / cancel bar for previewed changes (shown over the canvas)
   const pvbar = h('div', { class: 'pvbar', hidden: true },

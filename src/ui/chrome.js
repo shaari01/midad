@@ -11,6 +11,7 @@ import { listInbox, removeInbox, sendToApp, APPS } from '../core/inbox.js';
 import { newProjectDialog, projectsDialog, saveProjectFile, openProjectFile, aboutDialog, exportDialog, importGraphic } from './menus.js';
 import { convertSelection } from './panels.js';
 import { openFontPicker } from './fontpicker.js';
+import { openLibrary, saveSelectionAsSticker } from './library.js';
 
 export const CATS = [
   { id: 'edit', icon: 'wrench', label: 'تعديل' },
@@ -88,6 +89,7 @@ export function catItems(app, cat) {
       act('front', 'تقديم للأمام', 'إلى أعلى الكل (Ctrl+])', () => app.arrange('top'), { disabled: !hasSel }),
       act('back', 'إرجاع للخلف', 'إلى أسفل الكل (Ctrl+[)', () => app.arrange('bottom'), { disabled: !hasSel }),
       act('scaling', 'حجم مساحة العمل', 'مقاس اللوحة وخلفيتها', () => { app.select([]); showSection(app, 'المقاس'); }),
+      act('library', 'مكتبتي', 'ملصقاتك وصورك وأنماطك وخطوطك: أضف واحذف', () => openLibrary(app)),
       act('imageUp', 'إدراج صورة', 'أدرج صورة (بخلفية أو شفافة) أو SVG', () => importGraphic(app)),
       act('fit', 'ملاءمة الشاشة', 'إظهار اللوحة كاملة (Ctrl+0)', () => window.midad.canvas.fit()),
     ];
@@ -129,6 +131,7 @@ export function catItems(app, cat) {
       act('blend', 'Blend (تدرج شكلي)', 'حدّد شكلين لإنشاء أشكال وسيطة بينهما', () => { if (app.selection.length !== 2) return toast('حدّد شكلين'); showSection(app, 'Blend'); }),
     ];
     case 'tools': return [
+      act('library', 'مكتبتي', 'ملصقاتك وصورك وأنماطك وخطوطك: أضف واحذف', () => openLibrary(app)),
       act('scan', 'تحويل الصورة إلى شكل', 'تعقّب الصورة وتحويلها إلى شكل بلون واحد', async () => {
         if (one?.type === 'image') return showSection(app, 'تحويل الصورة إلى شكل');
         await importGraphic(app);
@@ -204,6 +207,7 @@ export function openHome(app) {
     row('saveAll', 'حفظ باسم', () => saveAs(app)),
     row('save', 'حفظ ملف المشروع', () => saveProjectFile(app)),
     h('hr'),
+    row('library', 'مكتبتي (ملصقات، صور، أنماط، خطوط)', () => openLibrary(app)),
     row('import', 'استيراد من الجهاز', () => importGraphic(app)),
     row('fileInput', 'استيراد من برامجي', () => importFromApps(app)),
     row('export', 'تصدير إلى الجهاز', () => exportDialog(app)),
@@ -267,7 +271,7 @@ export function applyLook(app) {
   const s = app.settings;
   const theme = s.theme === 'light' || s.theme === 'dark' ? s.theme : (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
   document.documentElement.dataset.theme = theme;
-  document.documentElement.style.setProperty('--ic', `${s.iconSize || 22}px`);
+  document.documentElement.style.setProperty('--ic', `${s.iconSize || 20}px`);
   document.body.classList.toggle('labels', !!s.showLabels);
   setLang(s.lang || 'ar');
 }
@@ -278,7 +282,7 @@ export function openSettings(app) {
   openSheet('الإعدادات', h('div', { class: 'settings' },
     field('اللغة', select([['ar', 'عربي'], ['en', 'إنجليزي']], s.lang || 'ar', (v) => { s.lang = v; save(true); closeSheet(); })),
     field('المظهر', select([['auto', 'حسب الجهاز'], ['light', 'فاتح'], ['dark', 'داكن']], s.theme || 'auto', (v) => { s.theme = v; save(); })),
-    field('حجم الأيقونات', select([['18', 'صغيرة'], ['22', 'متوسطة'], ['28', 'كبيرة']], String(s.iconSize || 22), (v) => { s.iconSize = +v; save(); })),
+    field('حجم الأيقونات', select([['16', 'صغيرة جدًا'], ['20', 'صغيرة'], ['24', 'متوسطة'], ['28', 'كبيرة']], String(s.iconSize || 20), (v) => { s.iconSize = +v; save(); })),
     h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: !!s.showLabels, onChange: (e) => { s.showLabels = e.target.checked; save(); } }), 'إظهار المسميات تحت الأيقونات'),
     field('وضع الواجهة', select([['auto', 'تلقائي'], ['mobile', 'جوال'], ['laptop', 'لابتوب']], s.mode || 'auto', (v) => { s.mode = v; save(); app.emit('applyMode'); })),
     h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: s.keepLive !== false, onChange: (e) => { s.keepLive = e.target.checked; save(); } }), 'احتفظ بنسخة حيّة مخفية'),
@@ -309,6 +313,7 @@ export function openContextMenu(app, cv, e) {
   const menu = h('div', { class: 'ctxmenu', role: 'menu' },
     it('cut', 'قص', () => Clip.cut(app), has), it('copy', 'نسخ', () => Clip.copy(app), has), it('paste', 'لصق', () => Clip.paste(app), !!Clip.data),
     it('copyPlus', 'تكرار', () => app.duplicateSelection(), has), it('trash', 'حذف', () => app.deleteSelection(), has),
+    it('library', 'حفظ في مكتبتي', () => saveSelectionAsSticker(app), has),
     has ? sep() : null,
     it('front', 'تقديم للأمام', () => app.arrange('top'), has), it('back', 'إرجاع للخلف', () => app.arrange('bottom'), has),
     it('group', 'تجميع', () => app.emit('group'), app.selection.length > 1), it('ungroup', 'فك التجميع', () => app.emit('ungroup'), one?.type === 'group'),
