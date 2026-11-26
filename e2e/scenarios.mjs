@@ -300,3 +300,48 @@ scenarios.push({
     await shot('erased');
   },
 });
+
+scenarios.push({
+  phase: 4, id: 'decor', name: 'الزخرفة: أنماط، حدود متعددة، تدرج، Contour، ظل، نقش',
+  async run({ page, vp, shot, expect }) {
+    await fresh(page);
+    const id = await addText(page, 'الله نور', { size: 220, m: [1, 0, 0, 1, 120, 300] });
+    await page.evaluate((i) => window.midad.app.select(i), id);
+    await openProps(page, vp);
+    await page.locator('.preset:visible', { hasText: 'ذهب مذهّب' }).click();
+    let o = (await doc(page)).objects[0];
+    expect(o.style.fills[0].type === 'linear' && o.style.strokes.length === 1, 'preset not applied');
+    expect(await page.locator('#content linearGradient').count() > 0, 'gradient not rendered');
+    await clickBtn(page, 'حدّ إضافي');
+    o = (await doc(page)).objects[0];
+    expect(o.style.strokes.length === 2, 'second stroke not added');
+    await page.locator('.side button:visible:has(.lbl:text-is("Contour (حدود متكررة)"))').click();
+    await page.locator('.side button:visible:has(.lbl:text-is("ظل"))').click();
+    o = (await doc(page)).objects[0];
+    expect(o.style.contour && !o.style.shadow, 'contour on / shadow toggled off expected');
+    expect(await page.locator('#content mask').count() >= 3, 'contour rings not rendered');
+    await closeDrawer(page, vp);
+    await shot('gold');
+    await openProps(page, vp);
+    await page.locator('.side select:visible').first().selectOption('pattern');
+    o = (await doc(page)).objects[0];
+    expect(o.style.fills[0].type === 'pattern', 'pattern fill not set');
+    expect(await page.locator('#content pattern').count() > 0, 'pattern not rendered');
+    await closeDrawer(page, vp);
+    await shot('pattern');
+  },
+});
+
+scenarios.push({
+  phase: 4, id: 'blend', name: 'Blend بين شكلين',
+  async run({ page, vp, expect, shot }) {
+    await fresh(page);
+    await addSquares(page);
+    await openProps(page, vp);
+    await clickBtn(page, 'إنشاء التدرج');
+    const d = await doc(page);
+    expect(d.objects.length === 1 && d.objects[0].type === 'group' && d.objects[0].children.length === 8, 'blend group wrong: ' + JSON.stringify(d.objects.map((x) => [x.type, x.children?.length])));
+    await closeDrawer(page, vp);
+    await shot('blend');
+  },
+});
