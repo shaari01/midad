@@ -3,8 +3,8 @@ import fs from 'node:fs';
 
 export const tool = (page, id) => page.locator(`button[data-tool="${id}"]:visible`).first().click();
 export const doc = (page) => page.evaluate(() => JSON.parse(JSON.stringify(window.midad.app.doc)));
-export const openProps = async (page, vp) => { if (vp === 'phone') await page.evaluate(() => window.midad.toggleDrawer('props', true)); };
-export const closeDrawer = async (page, vp) => { if (vp === 'phone') await page.evaluate(() => window.midad.toggleDrawer(null)); };
+export const openProps = async (page, vp) => { if (vp === 'phone') { await page.evaluate(() => window.midad.toggleDrawer('props', true)); await page.waitForTimeout(350); } };
+export const closeDrawer = async (page, vp) => { if (vp === 'phone') { await page.evaluate(() => window.midad.toggleDrawer(null)); await page.waitForTimeout(350); } };
 export const clickBtn = (page, label) => page.locator(`.side button:visible, .sheet button:visible`).filter({ hasText: label }).first().click();
 export async function stageBox(page) { return page.locator('#canvas').boundingBox(); }
 export async function screenOf(page, x, y) {
@@ -153,3 +153,69 @@ export const scenarios = [
     },
   },
 ];
+
+export async function itemCenter(page, idx) {
+  return page.evaluate((i) => {
+    const pts = [...document.querySelectorAll('#overlay polygon')][i].getAttribute('points').split(' ').map((p) => p.split(',').map(Number));
+    const r = document.querySelector('#canvas').getBoundingClientRect();
+    const cx = pts.reduce((a, p) => a + p[0], 0) / pts.length, cy = pts.reduce((a, p) => a + p[1], 0) / pts.length;
+    return [r.left + cx, r.top + cy];
+  }, idx);
+}
+export async function drag(page, [x0, y0], [x1, y1]) {
+  await page.mouse.move(x0, y0); await page.mouse.down();
+  await page.mouse.move(x1, y1, { steps: 8 }); await page.mouse.up();
+}
+
+scenarios.push({
+  phase: 2, id: 'letters', name: 'فكّ الكلمة وتحريك حرف ومدّه وتبديل الخط مع بقاء التعديلات',
+  async run({ page, vp, shot, expect }) {
+    await fresh(page);
+    const id = await addText(page, 'محمد', { size: 260, m: [1, 0, 0, 1, 250, 350] });
+    await page.evaluate((i) => window.midad.app.select(i), id);
+    await openProps(page, vp);
+    await clickBtn(page, 'فكّ الكلمة');
+    let d = await doc(page);
+    expect(d.objects[0].type === 'letters' && d.objects[0].items.length === 4, 'not exploded');
+    await closeDrawer(page, vp);
+    const n = await page.locator('#overlay polygon').count();
+    expect(n === 4, 'letter boxes missing: ' + n);
+    // tap the 2nd letter and drag it up
+    const c = await itemCenter(page, 1);
+    await page.mouse.click(c[0], c[1]);
+    await drag(page, c, [c[0], c[1] - 60]);
+    d = await doc(page);
+    const moved = d.objects[0].items.filter((i) => i.t.dy < -20);
+    expect(moved.length === 1, 'letter not moved');
+    // stretch handle
+    const sh = page.locator('#overlay [data-handle="stretchL"]');
+    const b = await sh.boundingBox();
+    await drag(page, [b.x + b.width / 2, b.y + b.height / 2], [b.x - 80, b.y + b.height / 2]);
+    d = await doc(page);
+    expect(d.objects[0].items.some((i) => i.t.stretchX > 40), 'stretch not applied');
+    await shot('edited');
+    // change font, edits stay
+    await openProps(page, vp);
+    await page.locator('.side .fontbtn:visible').click();
+    await page.locator('.fontcard', { hasText: 'عارف رقعة' }).click();
+    await page.waitForTimeout(200);
+    d = await doc(page);
+    expect(d.objects[0].fontId === 'arefruqaa', 'font not changed');
+    expect(d.objects[0].items.some((i) => i.t.dy < -20) && d.objects[0].items.some((i) => i.t.stretchX > 40), 'edits lost after font change');
+    await closeDrawer(page, vp);
+    await shot('ruqaa');
+    // alternates for a letter
+    await page.evaluate(() => { const { app } = window.midad; const o = app.one; o.fontId = 'amiri'; app.emit('fontChanged', o); app.toolState.items = [o.items.find((i) => i.ch === 'م').id]; app.render({ panels: true }); });
+    await openProps(page, vp);
+    const alts = await page.locator('.altcard:visible').count();
+    expect(alts >= 2, 'no alternates shown');
+    await page.locator('.altcard:visible').nth(1).click();
+    d = await doc(page);
+    expect(d.objects[0].items.some((i) => i.alt), 'alternate not applied');
+    // outlines keep a live copy of the letters
+    await page.evaluate(() => window.midad.app.setTool('select'));
+    await clickBtn(page, 'تحويل إلى أشكال');
+    d = await doc(page);
+    expect(d.objects[0].type === 'path' && d.objects[0].live?.type === 'letters', 'letters outline failed');
+  },
+});

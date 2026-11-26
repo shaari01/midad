@@ -214,3 +214,15 @@ body.mobile .fontlist { grid-template-columns: 1fr; }
 #app, main { overflow: hidden; max-width: 100vw; }
 body.mobile .topbar { overflow-x: auto; scrollbar-width: none; }
 body.mobile .topbar .fitbtn, body.mobile .topbar .modebtn { display: none; }
+
+/* phase 2: live letters */
+#overlay .lbox { fill: rgba(47,155,255,.04); stroke: var(--sel); stroke-opacity: .35; stroke-width: 1; stroke-dasharray: 3 3; }
+#overlay .lsel { fill: rgba(47,155,255,.12); stroke: var(--sel); stroke-width: 2; }
+#overlay .h.str { fill: #22c55e; stroke: #fff; }
+#overlay .magnet { fill: none; stroke: #f59e0b; stroke-width: 3; pointer-events: none; }
+.letters-strip .chip { font-size: 22px; min-width: 46px; min-height: 46px; }
+.alts { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 6px; }
+.altcard { display: grid; justify-items: center; gap: 2px; padding: 6px; height: 92px; border-radius: 12px; border: 2px solid var(--line); background: var(--panel2); cursor: pointer; color: var(--text); }
+.altcard.on { border-color: var(--accent); }
+.altcard svg { width: 100%; height: 60px; }
+.altcard small { font-size: 11px; color: var(--muted); }

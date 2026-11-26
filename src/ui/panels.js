@@ -253,6 +253,8 @@ function arrangeProps(app, objs) {
     row(btn('front', 'أعلى الكل', () => app.arrange('top'), { iconOnly: true }), btn('up', 'إلى الأمام', () => app.arrange('up'), { iconOnly: true }),
       btn('down', 'إلى الخلف', () => app.arrange('down'), { iconOnly: true }), btn('back', 'أسفل الكل', () => app.arrange('bottom'), { iconOnly: true })),
     row(btn('copy', 'تكرار', () => app.duplicateSelection()), btn('trash', 'حذف', () => app.deleteSelection(), { class: 'danger' })),
+    objs.some((o) => o.type !== 'path' && o.type !== 'image' && o.type !== 'group' && o.type !== 'text')
+      ? row(btn('outline', 'تحويل إلى أشكال', () => convertSelection(app))) : null,
     objs.length > 1 ? row(btn('group', 'تجميع', () => app.emit('group'))) : null,
     objs.length === 1 && objs[0].type === 'group' ? row(btn('ungroup', 'فك التجميع', () => app.emit('ungroup'))) : null,
   );

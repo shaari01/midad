@@ -16,7 +16,7 @@ const app = new App();
 window.midad = { app };
 
 async function boot() {
-  await loadPhases();
+  await loadPhases(app);
   // settings & user fonts
   Object.assign(app.settings, await Store.getMisc('settings', {}));
   app.saveSettings = () => Store.setMisc('settings', app.settings);
