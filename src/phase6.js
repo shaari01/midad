@@ -56,21 +56,31 @@ function installTrace(app) {
     const s = app.settings;
     const opts = s.trace = { mode: 'auto', threshold: 128, invert: false, despeckle: 6, smooth: 1, detail: 'mid', keepImage: false, ...(s.trace || {}) };
     const run = async () => {
+      // re-running while a trace preview is open replaces that preview
+      if (app.pending?.kind === 'trace') { app.doc = JSON.parse(app.lastSnap); }
+      const img = app.findDeep(o.id) || o;
       toast('جارٍ تحويل الصورة إلى شكل…', 'info', 6000);
       await new Promise((r) => setTimeout(r, 30));
       try {
-        const p = await traceImage(app, o, opts);
+        const p = await traceImage(app, img, opts);
         if (!p) return toast('لم أجد شكلًا في الصورة. غيّر «حدّ الأسود» أو «اعكس».', 'warn');
-        const idx = app.doc.objects.indexOf(o);
+        const idx = app.doc.objects.indexOf(img);
         app.doc.objects.splice(idx + 1, 0, p);
-        if (!opts.keepImage) app.doc.objects.splice(idx, 1); else o.visible = false;
-        app.selection = [p.id];
-        app.commit('تحويل الصورة إلى شكل');
+        img.visible = false;
+        app.selection = [img.id];
+        app.preview('تحويل الصورة إلى شكل', {
+          kind: 'trace',
+          onApply: () => {
+            const im = app.doc.objects.find((x) => x.id === img.id);
+            if (im && !opts.keepImage) app.doc.objects.splice(app.doc.objects.indexOf(im), 1);
+            app.selection = [p.id];
+          },
+        });
         app.render({ panels: true });
-        toast('تم: الصورة الآن شكل متجهي بلون واحد. عدّل نقاطه أو لوّنه أو ادمجه مع الحروف.');
+        toast('معاينة: غيّر الإعدادات لتتحدّث، ثم اضغط «تطبيق» أو «إلغاء».');
       } catch (e) { console.error(e); toast('تعذّر تحويل هذه الصورة', 'error'); }
     };
-    const save = () => app.saveSettings?.();
+    const save = () => { app.saveSettings?.(); if (app.pending?.kind === 'trace') run(); };
     return section('تحويل الصورة إلى شكل (Image Trace)',
       h('p', { class: 'hint' }, 'الصورة الشفافة تُؤخذ حدودها كما هي. الصورة بخلفية تتحوّل إلى أبيض وأسود: الأبيض يُحذف (شفاف) والأسود يصير شكلًا تعدّله بالعقد وتدمجه مع الحروف.'),
       field('طريقة الفصل', select([['auto', 'تلقائي'], ['alpha', 'حسب الشفافية'], ['dark', 'الداكن شكل، الفاتح خلفية'], ['light', 'الفاتح شكل، الداكن خلفية']], opts.mode, (v) => { opts.mode = v; save(); })),
@@ -107,7 +117,7 @@ function installTextPath(app) {
           attach(t, worldD(s));
           s.visible = false;
           app.selection = [t.id];
-          app.commit('كتابة على المسار');
+          app.preview('كتابة على المسار');
           app.render({ panels: true });
           toast('النص على المسار. الشكل الأصلي مخفي في الطبقات إن احتجته.');
         }, { class: 'primary' })));
@@ -127,7 +137,7 @@ function installTextPath(app) {
       o.onPath = { d: transformD(toD(parsePath(d)), I), start: kind === 'circle' ? 0.75 : 0.5, shift: 0, reverse: false };
       // circle path: start at the top (x grows clockwise)
       if (kind === 'circle') o.onPath.d = `M${cx - R},${cy} A${R},${R} 0 1 1 ${cx + R},${cy} A${R},${R} 0 1 1 ${cx - R},${cy} Z`;
-      app.commit('كتابة على مسار'); app.render({ panels: true });
+      app.preview('كتابة على مسار'); app.render({ panels: true });
     };
     if (!o.onPath) {
       return section('الكتابة على مسار',
@@ -141,11 +151,11 @@ function installTextPath(app) {
     const p = o.onPath;
     const set = (k) => (v) => { p[k] = v; app.render(); };
     return section('الكتابة على مسار',
-      slider('موضع النص على المسار', Math.round((p.start ?? 0.5) * 100), { min: 0, max: 100, unit: '%', onInput: (v) => set('start')(v / 100), onChange: () => app.commit('موضع النص') }),
-      slider('رفع/خفض عن المسار', p.shift || 0, { min: -o.size, max: o.size, onInput: set('shift'), onChange: () => app.commit('رفع النص') }),
-      row(btn('flipV', 'الجهة الأخرى', () => { p.reverse = !p.reverse; app.commit('قلب جهة المسار'); app.render({ panels: true }); }, { active: p.reverse, class: 'toggle' }),
+      slider('موضع النص على المسار', Math.round((p.start ?? 0.5) * 100), { min: 0, max: 100, unit: '%', onInput: (v) => set('start')(v / 100), onChange: () => app.preview('موضع النص') }),
+      slider('رفع/خفض عن المسار', p.shift || 0, { min: -o.size, max: o.size, onInput: set('shift'), onChange: () => app.preview('رفع النص') }),
+      row(btn('flipV', 'الجهة الأخرى', () => { p.reverse = !p.reverse; app.preview('قلب جهة المسار'); app.render({ panels: true }); }, { active: p.reverse, class: 'toggle' }),
         btn('route', 'ارسم مسارًا جديدًا', () => app.setTool('textpath')),
-        btn('close', 'فصل عن المسار', () => { delete o.onPath; app.commit('فصل عن المسار'); app.render({ panels: true }); })),
+        btn('close', 'فصل عن المسار', () => { delete o.onPath; app.preview('فصل عن المسار'); app.render({ panels: true }); })),
       h('p', { class: 'hint' }, 'حين ترضى عن الشكل: «تحويل إلى أشكال» ثم أصلح أي عيب بأداة العقد.'));
   });
 

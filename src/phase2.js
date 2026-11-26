@@ -139,7 +139,7 @@ function itemProps(app, o, fh, items) {
         const on = (it.alt ? JSON.stringify(it.alt) : null) === (a.alt ? JSON.stringify(a.alt) : null);
         const b = h('button', { type: 'button', class: `altcard ${on ? 'on' : ''}`, title: a.label, onClick: () => {
           it.alt = a.alt; it.gid = a.alt ? altGid(fh, o, it, a.alt) ?? it.gid : a.gid;
-          app.commit('شكل بديل'); app.render({ panels: true });
+          app.preview('شكل بديل'); app.render({ panels: true });
         } });
         b.innerHTML = glyphPreview(fh, a.gid) + `<small>${a.label}</small>`;
         return b;

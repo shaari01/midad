@@ -34,7 +34,7 @@ export function install(app) {
         app.add(k);
       }
       app.setTool('kufi');
-      app.commit('كتابة كوفية آلية');
+      app.preview('كتابة كوفية آلية');
       app.render({ panels: true });
       toast('اقتراح أولي: عدّله بإصبعك خلية خلية');
     };
@@ -44,7 +44,7 @@ export function install(app) {
         slider('حجم الشبكة الجديدة', s.kufiSize || 21, { min: 5, max: 61, step: 2, onInput: (v) => { s.kufiSize = v; } }),
         field('كلمة', inp), row(btn('sparkles', 'كتابة آلية', write, { class: 'primary' })), sym);
     }
-    const tr = (k, label) => () => { transformGrid(o, k); app.commit(label); app.render({ panels: true }); };
+    const tr = (k, label) => () => { transformGrid(o, k); app.preview(label); app.render({ panels: true }); };
     let cols = o.cols, rows = o.rows;
     return section('الكوفي المربع',
       row(btn('kufi', app.tool === 'kufi' ? 'إنهاء الرسم' : 'رسم الخلايا', () => app.setTool(app.tool === 'kufi' ? 'select' : 'kufi'), { active: app.tool === 'kufi', class: 'toggle' })),

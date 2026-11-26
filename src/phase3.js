@@ -48,7 +48,7 @@ export function install(app) {
       row(btn('simplify', 'تنعيم', () => {
         const before = countNodes(o.d);
         o.d = simplifyD(o.d, tol);
-        app.commit('تنعيم المسار');
+        app.preview('تنعيم المسار');
         toast(`النقاط: ${before} ← ${countNodes(o.d)}`);
         app.render({ panels: true });
       }), btn('unite', 'دمج التداخل', () => { o.d = cleanD(o.d); app.commit('دمج التداخل'); app.render({ panels: true }); }),
@@ -118,7 +118,7 @@ export function shapeOp(app, kind, label) {
   const above = app.doc.objects.slice(idx + 1);
   app.doc.objects = [...below, ...out, ...above];
   app.selection = out.map((o) => o.id);
-  app.commit(label);
+  app.preview(label);
   app.render({ panels: true });
 }
 

@@ -444,6 +444,12 @@ scenarios.push({
     await openProps(page, vp);
     await clickBtn(page, 'تحويل إلى شكل');
     await page.waitForFunction(() => window.midad.app.doc.objects.some((o) => o.type === 'path'), null, { timeout: 8000 });
+    await closeDrawer(page, vp);
+    expect(await page.locator('.pvbar:visible').count() === 1, 'no preview bar before applying the trace');
+    expect((await doc(page)).objects.some((o) => o.type === 'image'), 'image removed before applying');
+    await shot('preview');
+    await page.locator('.pvbar .pvok').click();
+    expect(!(await doc(page)).objects.some((o) => o.type === 'image'), 'image still there after applying');
     const p = (await doc(page)).objects.find((o) => o.type === 'path');
     expect(p.live?.type === 'image', 'trace result should keep the image as a live copy');
     expect((p.d.match(/M/g) || []).length >= 2, 'the hole should be traced as a second contour');
@@ -562,5 +568,53 @@ scenarios.push({
     await page.waitForSelector('.lettersbar .lchip', { timeout: 5000 });
     expect((await doc(page)).objects.some((o) => o.type === 'letters'), 'text was not exploded automatically');
     await shot('lettersbar');
+  },
+});
+
+scenarios.push({
+  phase: 7, id: 'preview', name: 'معاينة قبل التطبيق، ومنزلقات لا تتحرك أثناء التمرير',
+  async run({ page, vp, expect, shot }) {
+    await fresh(page);
+    const id = await addText(page, 'محمد', { size: 300, m: [1, 0, 0, 1, 250, 300] });
+    await page.evaluate((i) => { window.midad.app.select(i); window.midad.app.render({ panels: true }); }, id);
+    await openProps(page, vp);
+    const before = JSON.stringify((await doc(page)).objects[0].style);
+    await page.locator('.side .preset:visible').nth(1).click();
+    expect(await page.locator('.pvbar:visible').count() === 1, 'no preview bar after a preset');
+    expect(JSON.stringify((await doc(page)).objects[0].style) !== before, 'preset not shown live');
+    await shot('preset-preview');
+    await page.locator('.pvbar .pvno').click();
+    expect(JSON.stringify((await doc(page)).objects[0].style) === before, 'cancel did not restore the style');
+    await page.locator('.side .preset:visible').nth(1).click();
+    await page.locator('.pvbar .pvok').click();
+    expect(JSON.stringify((await doc(page)).objects[0].style) !== before, 'apply lost the preset');
+    expect(await page.locator('.pvbar:visible').count() === 0, 'bar stays after apply');
+    if (vp === 'phone') {
+      // a vertical finger swipe over a slider must not change it
+      const r = page.locator('.side .rangewrap:visible').first();
+      await r.scrollIntoViewIfNeeded();
+      const inp = r.locator('input');
+      const v0 = await inp.inputValue();
+      const b = await r.boundingBox();
+      const cdp = await page.context().newCDPSession(page);
+      const touch = async (type, x, y) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] });
+      const x = b.x + b.width / 2, y = b.y + b.height / 2;
+      await touch('touchStart', x, y); for (let k = 1; k <= 6; k++) await touch('touchMove', x + k, y - k * 12); await touch('touchEnd');
+      await page.waitForTimeout(100);
+      expect(await inp.inputValue() === v0, 'slider changed during a vertical swipe');
+      // the swipe scrolled the panel: find the slider again
+      await r.scrollIntoViewIfNeeded();
+      const b2 = await r.boundingBox();
+      const [x2, y2] = [b2.x + b2.width / 2, b2.y + b2.height / 2];
+      await touch('touchStart', x2, y2); for (let k = 1; k <= 8; k++) await touch('touchMove', x2 - k * 10, y2); await touch('touchEnd');
+      await page.waitForTimeout(100);
+      const v1 = await inp.inputValue();
+      await touch('touchStart', x2, y2); for (let k = 1; k <= 8; k++) await touch('touchMove', x2 + k * 10, y2); await touch('touchEnd');
+      await page.waitForTimeout(100);
+      const v2 = await inp.inputValue();
+      expect(v1 !== v0 || v2 !== v1, `slider did not move on a sideways drag (${v0} ${v1} ${v2} min=${await inp.getAttribute('min')} max=${await inp.getAttribute('max')})`);
+    }
+    await closeDrawer(page, vp);
+    await shot('compact');
   },
 });

@@ -75,7 +75,39 @@ export function slider(label, value, { min = 0, max = 100, step = 1, unit = '', 
   rng.addEventListener('input', () => { num.value = round(rng.value); fire(rng.value, false); });
   rng.addEventListener('change', () => fire(rng.value, true));
   num.addEventListener('change', () => { rng.value = num.value; fire(num.value, true); });
-  return h('div', { class: 'field slider' }, h('span', { class: 'flabel' }, label, unit ? h('small', {}, ` (${unit})`) : null), h('div', { class: 'srow' }, rng, num));
+  return h('div', { class: 'field slider' }, h('span', { class: 'flabel' }, label, unit ? h('small', {}, ` (${unit})`) : null), h('div', { class: 'srow' }, guardRange(rng, num, fire), num));
+}
+
+/** On touch screens a range only moves after a clear sideways drag, so
+ *  scrolling the panel with a finger never changes a value by accident.
+ *  The drag is relative (no jump to where the finger lands). */
+function guardRange(rng, num, fire) {
+  const wrap = h('div', { class: 'rangewrap' }, rng);
+  let st = null;
+  wrap.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse') return; // mouse uses the native range
+    st = { x: e.clientX, y: e.clientY, v: Number(rng.value), on: false, id: e.pointerId };
+  });
+  wrap.addEventListener('pointermove', (e) => {
+    if (!st || e.pointerId !== st.id) return;
+    const dx = e.clientX - st.x, dy = e.clientY - st.y;
+    if (!st.on) {
+      if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { st = null; return; }
+      if (Math.abs(dx) < 10 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+      st.on = true; st.x = e.clientX; wrap.classList.add('dragging');
+      try { wrap.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+    }
+    const min = Number(rng.min), max = Number(rng.max), step = Number(rng.step) || 1;
+    const w = rng.getBoundingClientRect().width || 200;
+    const rtl = getComputedStyle(rng).direction === 'rtl';
+    let v = st.v + ((rtl ? -1 : 1) * (e.clientX - st.x) / w) * (max - min);
+    v = Math.min(max, Math.max(min, Math.round(v / step) * step));
+    if (String(v) !== rng.value) { rng.value = v; num.value = round(v); fire(v, false); }
+  });
+  const end = () => { if (st?.on) { wrap.classList.remove('dragging'); fire(rng.value, true); } st = null; };
+  wrap.addEventListener('pointerup', end);
+  wrap.addEventListener('pointercancel', () => { if (st?.on) fire(rng.value, true); wrap.classList.remove('dragging'); st = null; });
+  return wrap;
 }
 const round = (v) => Math.round(Number(v) * 100) / 100;
 

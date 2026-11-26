@@ -267,7 +267,7 @@ export function applyLook(app) {
   const s = app.settings;
   const theme = s.theme === 'light' || s.theme === 'dark' ? s.theme : (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
   document.documentElement.dataset.theme = theme;
-  document.documentElement.style.setProperty('--ic', `${s.iconSize || 26}px`);
+  document.documentElement.style.setProperty('--ic', `${s.iconSize || 22}px`);
   document.body.classList.toggle('labels', !!s.showLabels);
   setLang(s.lang || 'ar');
 }
@@ -278,7 +278,7 @@ export function openSettings(app) {
   openSheet('الإعدادات', h('div', { class: 'settings' },
     field('اللغة', select([['ar', 'عربي'], ['en', 'إنجليزي']], s.lang || 'ar', (v) => { s.lang = v; save(true); closeSheet(); })),
     field('المظهر', select([['auto', 'حسب الجهاز'], ['light', 'فاتح'], ['dark', 'داكن']], s.theme || 'auto', (v) => { s.theme = v; save(); })),
-    field('حجم الأيقونات', select([['22', 'صغيرة'], ['26', 'متوسطة'], ['32', 'كبيرة']], String(s.iconSize || 26), (v) => { s.iconSize = +v; save(); })),
+    field('حجم الأيقونات', select([['18', 'صغيرة'], ['22', 'متوسطة'], ['28', 'كبيرة']], String(s.iconSize || 22), (v) => { s.iconSize = +v; save(); })),
     h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: !!s.showLabels, onChange: (e) => { s.showLabels = e.target.checked; save(); } }), 'إظهار المسميات تحت الأيقونات'),
     field('وضع الواجهة', select([['auto', 'تلقائي'], ['mobile', 'جوال'], ['laptop', 'لابتوب']], s.mode || 'auto', (v) => { s.mode = v; save(); app.emit('applyMode'); })),
     h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: s.keepLive !== false, onChange: (e) => { s.keepLive = e.target.checked; save(); } }), 'احتفظ بنسخة حيّة مخفية'),

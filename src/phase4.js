@@ -29,6 +29,6 @@ export function makeBlend(app, [a, b], steps) {
   app.doc.objects.splice(idx + 1, 0, g);
   app.remove([a.id, b.id]);
   app.selection = [g.id];
-  app.commit('Blend');
+  app.preview('Blend');
   app.render({ panels: true });
 }

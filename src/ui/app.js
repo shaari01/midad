@@ -54,8 +54,34 @@ export class App {
     this.render({ panels: true });
   }
 
+  /** Show a change live with an apply / cancel bar instead of committing it
+   *  straight away (Ali's rule: preview before applying any tool or effect). */
+  preview(label = '', extra = {}) {
+    if (!this.pending) this.pending = { sel: this.selection.slice() };
+    Object.assign(this.pending, extra, { label });
+    this.emit('preview', this.pending);
+  }
+
+  applyPreview() {
+    const p = this.pending; if (!p) return;
+    this.pending = null;
+    p.onApply?.();
+    this.commit(p.label);
+    this.emit('preview', null);
+    this.render({ panels: true });
+  }
+
+  cancelPreview() {
+    const p = this.pending; if (!p) return;
+    this.pending = null;
+    this.selection = p.sel.slice();
+    this.revert();
+    this.emit('preview', null);
+  }
+
   /** Record a history step if the document changed. */
   commit(label = '') {
+    if (this.pending) { const p = this.pending; this.pending = null; this.emit('preview', null); if (!label) label = p.label; }
     const snap = JSON.stringify(this.doc);
     if (snap === this.lastSnap) return false;
     this.undoStack.push({ snap: this.lastSnap, label, sel: this.selection.slice() });
@@ -85,6 +111,7 @@ export class App {
   }
 
   undo() {
+    if (this.pending) { this.cancelPreview(); return; }
     const s = this.undoStack.pop();
     if (!s) return;
     this.redoStack.push({ snap: this.lastSnap, label: s.label, sel: this.selection.slice() });

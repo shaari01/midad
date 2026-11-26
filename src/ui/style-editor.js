@@ -39,7 +39,7 @@ export function styleEditor(app, objs) {
   const st = objs[0].style;
   const each = (fn) => objs.forEach((o) => o.style && fn(o.style));
   const live = () => app.render();
-  const commit = (l = 'تنسيق') => { app.commit(l); app.render({ panels: true }); };
+  const commit = (l = 'تنسيق') => { app.preview(l); app.render({ panels: true }); };
   const fills = st.fills || [];
   const strokes = st.strokes || [];
 
@@ -64,7 +64,7 @@ export function styleEditor(app, objs) {
         field('الموضع', select([['outside', 'خارج'], ['center', 'منتصف'], ['inside', 'داخل']], s.align || 'center', (v) => { each((x) => { if (x.strokes[i]) x.strokes[i].align = v; }); commit('موضع الحد'); })),
         btn('up', 'للأعلى', () => { each((x) => { if (i > 0) [x.strokes[i - 1], x.strokes[i]] = [x.strokes[i], x.strokes[i - 1]]; }); commit('ترتيب الحدود'); }, { iconOnly: true, class: 'ghost small', disabled: i === 0 }),
         btn('trash', 'حذف الحد', () => { each((x) => x.strokes.splice(i, 1)); commit('حذف حد'); }, { iconOnly: true, class: 'ghost small' })),
-      slider('السماكة', s.width, { min: 0.5, max: 80, step: 0.5, onInput: (v) => { each((x) => { if (x.strokes[i]) x.strokes[i].width = v; }); live(); }, onChange: () => app.commit('سماكة') }),
+      slider('السماكة', s.width, { min: 0.5, max: 80, step: 0.5, onInput: (v) => { each((x) => { if (x.strokes[i]) x.strokes[i].width = v; }); live(); }, onChange: () => app.preview('سماكة') }),
       row(field('النهايات', select([['round', 'مستديرة'], ['butt', 'مقطوعة'], ['square', 'مربعة']], s.cap || 'round', (v) => { each((x) => { if (x.strokes[i]) x.strokes[i].cap = v; }); commit('نهايات'); })),
         field('الزوايا', select([['round', 'مستديرة'], ['miter', 'حادة'], ['bevel', 'مشطوفة']], s.join || 'round', (v) => { each((x) => { if (x.strokes[i]) x.strokes[i].join = v; }); commit('زوايا'); })),
         field('متقطع', select([['', 'متصل'], ['8 6', 'شرطات'], ['1 6', 'نقاط'], ['18 8 2 8', 'شرطة ونقطة']], s.dash || '', (v) => { each((x) => { if (x.strokes[i]) x.strokes[i].dash = v || null; }); commit('تقطيع'); }))))),
@@ -77,7 +77,7 @@ export function styleEditor(app, objs) {
   /* ---------- effects ---------- */
   const fx = effectsSection(app, objs, st, each, live, commit);
 
-  const opacity = slider('شفافية العنصر', Math.round((st.opacity ?? 1) * 100), { min: 0, max: 100, unit: '%', onInput: (v) => { each((s) => { s.opacity = v / 100; }); live(); }, onChange: () => app.commit('شفافية') });
+  const opacity = slider('شفافية العنصر', Math.round((st.opacity ?? 1) * 100), { min: 0, max: 100, unit: '%', onInput: (v) => { each((s) => { s.opacity = v / 100; }); live(); }, onChange: () => app.preview('شفافية') });
   return h('div', {}, presets, fillSec, strokeSec, ...fx, colorLibrary(app, objs, each, commit), ...more.map((fn) => fn(app, objs)).filter(Boolean), section('', opacity));
 }
 
@@ -119,7 +119,7 @@ function fillCard(app, objs, f, i, each, live, commit) {
     btn('trash', 'حذف', () => { each((s) => s.fills.splice(i, 1)); commit('حذف تعبئة'); }, { iconOnly: true, class: 'ghost small' }))];
   if (f.type === 'solid') {
     kids.push(row(field('اللون', colorInput(f.color, (c) => setF({ color: c }, true), { onInput: (c) => setF({ color: c }) })),
-      field('الشفافية', slider('', Math.round((f.opacity ?? 1) * 100), { min: 0, max: 100, onInput: (v) => setF({ opacity: v / 100 }), onChange: () => app.commit('شفافية') }))));
+      field('الشفافية', slider('', Math.round((f.opacity ?? 1) * 100), { min: 0, max: 100, onInput: (v) => setF({ opacity: v / 100 }), onChange: () => app.preview('شفافية') }))));
     kids.push(swatchRow((c) => setF({ color: c }, true)));
   }
   if (f.type === 'linear' || f.type === 'radial') {
@@ -127,19 +127,19 @@ function fillCard(app, objs, f, i, each, live, commit) {
     kids.push(h('div', { class: 'gradbar', style: { background: `linear-gradient(to left, ${stops.map((s) => `${s.color} ${s.offset * 100}%`).join(',')})` } }));
     stops.forEach((s, k) => kids.push(row(
       field(`لون ${k + 1}`, colorInput(s.color, (c) => { each((x) => { x.fills[i].stops[k].color = c; }); commit('تدرج'); }, { onInput: (c) => { each((x) => { x.fills[i].stops[k].color = c; }); live(); } })),
-      field('الموضع', slider('', Math.round(s.offset * 100), { min: 0, max: 100, unit: '%', onInput: (v) => { each((x) => { x.fills[i].stops[k].offset = v / 100; }); live(); }, onChange: () => app.commit('تدرج') })),
+      field('الموضع', slider('', Math.round(s.offset * 100), { min: 0, max: 100, unit: '%', onInput: (v) => { each((x) => { x.fills[i].stops[k].offset = v / 100; }); live(); }, onChange: () => app.preview('تدرج') })),
       stops.length > 2 ? btn('minus', 'حذف اللون', () => { each((x) => x.fills[i].stops.splice(k, 1)); commit('تدرج'); }, { iconOnly: true, class: 'ghost small' }) : null)));
     kids.push(row(stops.length < 6 ? btn('plus', 'لون في التدرج', () => { each((x) => { x.fills[i].stops.push({ offset: 1, color: '#ffffff' }); x.fills[i].stops.sort((a, b) => a.offset - b.offset); }); commit('تدرج'); }, { class: 'small' }) : null,
       btn(null, 'عكس', () => { each((x) => { x.fills[i].stops = x.fills[i].stops.map((s) => ({ ...s, offset: 1 - s.offset })).reverse(); }); commit('عكس التدرج'); }, { class: 'small' })));
-    if (f.type === 'linear') kids.push(slider('زاوية التدرج', f.angle ?? 90, { min: 0, max: 360, unit: '°', onInput: (v) => setF({ angle: v }), onChange: () => app.commit('زاوية') }));
-    else kids.push(slider('اتساع التدرج', Math.round((f.r ?? 0.6) * 100), { min: 10, max: 150, unit: '%', onInput: (v) => setF({ r: v / 100 }), onChange: () => app.commit('اتساع') }));
+    if (f.type === 'linear') kids.push(slider('زاوية التدرج', f.angle ?? 90, { min: 0, max: 360, unit: '°', onInput: (v) => setF({ angle: v }), onChange: () => app.preview('زاوية') }));
+    else kids.push(slider('اتساع التدرج', Math.round((f.r ?? 0.6) * 100), { min: 10, max: 150, unit: '%', onInput: (v) => setF({ r: v / 100 }), onChange: () => app.preview('اتساع') }));
   }
   if (f.type === 'pattern') {
     kids.push(row(field('النقش', select(Object.keys(PATTERNS).map((k) => [k, { dots: 'نقاط', stripes: 'خطوط', diagonal: 'مائل', grid: 'شبكة', diamonds: 'معيّنات', stars: 'نجوم ثمانية' }[k] || k]), f.pattern, (v) => setF({ pattern: v }, true))),
       field('لون النقش', colorInput(f.color, (c) => setF({ color: c }, true), { onInput: (c) => setF({ color: c }) })),
       field('الأرضية', colorInput(f.bg || '#ffffff', (c) => setF({ bg: c }, true), { onInput: (c) => setF({ bg: c }) }))));
-    kids.push(slider('حجم النقش', f.scale || 16, { min: 4, max: 120, onInput: (v) => setF({ scale: v }), onChange: () => app.commit('حجم النقش') }));
-    kids.push(slider('دوران النقش', f.rotate || 0, { min: 0, max: 180, unit: '°', onInput: (v) => setF({ rotate: v }), onChange: () => app.commit('دوران النقش') }));
+    kids.push(slider('حجم النقش', f.scale || 16, { min: 4, max: 120, onInput: (v) => setF({ scale: v }), onChange: () => app.preview('حجم النقش') }));
+    kids.push(slider('دوران النقش', f.rotate || 0, { min: 0, max: 180, unit: '°', onInput: (v) => setF({ rotate: v }), onChange: () => app.preview('دوران النقش') }));
   }
   if (f.type === 'image') {
     kids.push(row(f.src ? h('img', { src: f.src, class: 'fillthumb', alt: '' }) : null, btn('image', f.src ? 'تبديل الصورة' : 'اختيار صورة', pickImage, { class: 'small' })));
@@ -149,7 +149,7 @@ function fillCard(app, objs, f, i, each, live, commit) {
 
 function effectsSection(app, objs, st, each, live, commit) {
   const toggle = (key, def, label) => btn(st[key] ? 'check' : 'plus', label, () => { each((s) => { s[key] = s[key] ? null : JSON.parse(JSON.stringify(def)); }); commit(label); }, { active: !!st[key], class: 'toggle small' });
-  const num = (key, prop, label, opts) => slider(label, st[key][prop] ?? opts.def ?? 0, { ...opts, onInput: (v) => { each((s) => { if (s[key]) s[key][prop] = v; }); live(); }, onChange: () => app.commit(label) });
+  const num = (key, prop, label, opts) => slider(label, st[key][prop] ?? opts.def ?? 0, { ...opts, onInput: (v) => { each((s) => { if (s[key]) s[key][prop] = v; }); live(); }, onChange: () => app.preview(label) });
   const color = (key, prop, label) => field(label, colorInput(st[key][prop], (c) => { each((s) => { if (s[key]) s[key][prop] = c; }); commit(label); }, { onInput: (c) => { each((s) => { if (s[key]) s[key][prop] = c; }); live(); } }));
   const out = [];
   out.push(section('تأثيرات',
@@ -162,7 +162,7 @@ function effectsSection(app, objs, st, each, live, commit) {
       num('contour', 'count', 'العدد', { min: 1, max: 12 }), num('contour', 'distance', 'المسافة', { min: 2, max: 60, step: 0.5 }), num('contour', 'width', 'سماكة الخط', { min: 0.5, max: 20, step: 0.5 })) : null,
     st.shadow ? h('div', { class: 'subcard' }, h('strong', {}, 'الظل'), row(color('shadow', 'color', 'اللون')),
       num('shadow', 'dx', 'إزاحة أفقية', { min: -60, max: 60 }), num('shadow', 'dy', 'إزاحة رأسية', { min: -60, max: 60 }), num('shadow', 'blur', 'التمويه', { min: 0, max: 40 }),
-      slider('الكثافة', Math.round((st.shadow.opacity ?? 0.4) * 100), { min: 0, max: 100, unit: '%', onInput: (v) => { each((s) => { if (s.shadow) s.shadow.opacity = v / 100; }); live(); }, onChange: () => app.commit('ظل') })) : null,
+      slider('الكثافة', Math.round((st.shadow.opacity ?? 0.4) * 100), { min: 0, max: 100, unit: '%', onInput: (v) => { each((s) => { if (s.shadow) s.shadow.opacity = v / 100; }); live(); }, onChange: () => app.preview('ظل') })) : null,
     st.glow ? h('div', { class: 'subcard' }, h('strong', {}, 'التوهج'), row(color('glow', 'color', 'اللون')),
       num('glow', 'blur', 'الانتشار', { min: 1, max: 50 }), num('glow', 'strength', 'القوة', { min: 1, max: 3 })) : null,
     st.extrude ? h('div', { class: 'subcard' }, h('strong', {}, 'التجسيم'), row(color('extrude', 'color', 'لون الجانب')),

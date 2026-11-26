@@ -1,6 +1,7 @@
 import './styles.css';
 import { App } from './ui/app.js';
 import { Canvas, isTyping } from './ui/canvas.js';
+import { tr } from './ui/i18n.js';
 import { h, btn, icon, toast, closeSheet, openSheet } from './ui/dom.js';
 import { renderProps, renderLayers } from './ui/panels.js';
 import { openFileMenu, exportDialog, importGraphic, importSVGText, newProjectDialog, projectsDialog } from './ui/menus.js';
@@ -226,6 +227,7 @@ function buildUI() {
     if (mod && (k === '=' || k === '+')) { e.preventDefault(); zoomBy(1.25); return; }
     if (mod && k === '-') { e.preventDefault(); zoomBy(0.8); return; }
     if (k === 'delete' || k === 'backspace') { if (app.tool === 'nodes' || app.tool === 'letters') { app.emit('deleteKey'); return; } e.preventDefault(); app.deleteSelection(); return; }
+    if (app.pending && (k === 'escape' || k === 'enter')) { e.preventDefault(); if (k === 'enter') app.applyPreview(); else app.cancelPreview(); return; }
     if (k === 'escape') { closeSheet(); closeHome(); closeContext(); if (app.tool !== 'select') app.setTool('select'); else app.select([]); return; }
     if (k.startsWith('arrow') && app.selection.length) {
       e.preventDefault();
@@ -248,6 +250,17 @@ function buildUI() {
   });
 
   installTooltips();
+
+  // apply / cancel bar for previewed changes (shown over the canvas)
+  const pvbar = h('div', { class: 'pvbar', hidden: true },
+    btn('close', 'إلغاء', () => app.cancelPreview(), { iconOnly: true, class: 'pvno', title: 'إلغاء (Esc)' }),
+    h('span', { class: 'pvlbl' }),
+    btn('check', 'تطبيق', () => app.applyPreview(), { iconOnly: true, class: 'pvok', title: 'تطبيق (Enter)' }));
+  stage.append(pvbar);
+  app.on('preview', (p) => {
+    pvbar.hidden = !p;
+    if (p) pvbar.querySelector('.pvlbl').textContent = tr('معاينة') + (p.label ? ': ' + tr(p.label) : '');
+  });
   refreshPanels();
 }
 

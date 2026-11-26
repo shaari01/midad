@@ -327,3 +327,58 @@ kbd { font-family: inherit; background: var(--panel2); border: 1px solid var(--l
 .lchip.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .lchip.tool { background: var(--panel2); color: var(--text); }
 .lchip.tool.on { background: var(--accent); color: var(--accent-ink); }
+
+/* ===================== compact UI (Ali's rule, VivaVideo-like) ===================== */
+:root { --ic: 22px; --top: 50px; --tb: 56px; }
+body { font-size: 14px; }
+.btn { min-height: 40px; min-width: 40px; padding: 4px 10px; font-size: 14px; }
+.btn.small { min-height: 34px; min-width: 34px; padding: 2px 8px; font-size: 13px; }
+input, select, textarea { min-height: 38px; padding: 6px 8px; border-radius: 8px; }
+input[type=color] { height: 38px; width: 48px; }
+.topbar { gap: 2px; padding: 4px 6px; }
+.topbar .btn { background: transparent; border-color: transparent; min-width: 40px; }
+.topbar .btn.primary { background: var(--accent); }
+/* tools: flat icons, the active one is tinted and underlined (no big filled boxes) */
+.toolbar { gap: 0; padding: 4px; }
+.toolbar .btn, .toolrow .btn, .catbar .btn { min-height: 44px; min-width: 44px; padding: 2px; border-radius: 10px; }
+.toolbar .btn.active, .toolrow .btn.active, .catbar .btn.active, .bottombar .btn.active { background: transparent; color: var(--accent); box-shadow: inset 0 -3px 0 var(--accent); }
+body.labels .toolbar .btn { min-height: 54px; }
+body.labels .toolbar .btn .lbl, body.labels .toolrow .btn .lbl, body.labels .catbar .btn .lbl { font-size: 10px; }
+.toolrow { padding: 2px 4px; }
+.toolrow .btn { min-width: 46px; min-height: 44px; }
+body.mobile .catbar .btn { min-height: 44px; }
+body.mobile .topbar .btn { min-width: 40px; }
+/* side panel: denser */
+.side h3 { font-size: 14px; margin: 8px 0 4px; }
+.field { gap: 2px; }
+.flabel { font-size: 12.5px; }
+.hint { font-size: 12.5px; }
+.chip { min-height: 34px; padding: 2px 10px; font-size: 13px; }
+.mgrid .btn, .mgrid.tight .btn { min-height: 52px; font-size: 12px; }
+.check { min-height: 34px; font-size: 13px; }
+.layer { min-height: 42px; }
+.fontbtn { min-height: 44px; }
+.preset { min-height: 58px; }
+.hrow { min-height: 42px; font-size: 15px; }
+.cmi { min-height: 34px; font-size: 13.5px; }
+.lchip { width: 44px; height: 44px; }
+body.mobile .side { height: 44%; }
+input[type=range] { min-height: 30px; }
+.rangewrap { flex: 1; display: flex; align-items: center; touch-action: pan-y; }
+.rangewrap input[type=range] { flex: 1; width: 100%; }
+@media (pointer: coarse) { .rangewrap input[type=range] { pointer-events: none; } }
+.rangewrap.dragging input[type=range] { filter: brightness(1.2); }
+/* preview bar: apply / cancel before a change is kept */
+.pvbar { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); z-index: 8; display: flex; align-items: center; gap: 8px; padding: 4px 6px; background: var(--panel); border: 1px solid var(--accent); border-radius: 999px; box-shadow: 0 6px 20px rgba(0,0,0,.3); max-width: calc(100% - 16px); }
+.pvbar[hidden] { display: none; }
+.pvbar .pvlbl { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pvbar .btn { min-height: 38px; min-width: 38px; border-radius: 999px; }
+.pvbar .pvok { background: #2e9b4f; color: #fff; border-color: transparent; }
+.pvbar .pvno { background: transparent; }
+.slider .srow { grid-template-columns: 1fr 64px; gap: 6px; }
+body.mobile .side .tabs button[data-tab] { min-height: 34px; font-size: 14px; }
+body.mobile .side .tabs { padding: 4px 6px; gap: 4px; }
+.presets { grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 4px; }
+.preset { min-height: 50px; padding: 4px 2px; font-size: 11px; }
+.preset svg { max-height: 30px; }
+.preset .pv { font-size: 24px; }
