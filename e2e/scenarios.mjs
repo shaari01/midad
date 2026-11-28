@@ -82,6 +82,7 @@ export const scenarios = [
       await page.evaluate(() => window.midad.app.setTool('kashida'));
       const handles = page.locator('#overlay [data-handle^="k"]');
       expect(await handles.count() === 2, 'expected 2 kashida handles');
+      await page.waitForTimeout(150);
       const box = await handles.first().boundingBox();
       await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
       await page.mouse.down();
@@ -483,7 +484,7 @@ scenarios.push({
   async run({ page, expect, vp, shot }) {
     await fresh(page);
     await page.locator('.catbar button[title="نص"]:visible').first().click();
-    const ok = await page.evaluate(async () => { const b = [...document.querySelectorAll('button')].find((x) => x.title?.startsWith('حروف الخط كأشكال') && x.offsetParent); if (b) { b.click(); return true; } return false; });
+    const ok = await page.evaluate(async () => { const b = [...document.querySelectorAll('button')].find((x) => x.title?.startsWith('رمز') && x.offsetParent); if (b) { b.click(); return true; } return false; });
     expect(ok, 'glyph button not found in the text category');
     await page.waitForSelector('.glyphgrid .glyph', { timeout: 8000 });
     expect(await page.locator('.glyphgrid .glyph').count() >= 2, 'few letter forms');
@@ -534,14 +535,22 @@ scenarios.push({
   async run({ page, vp, expect, shot }) {
     await fresh(page);
     await page.locator('.topbar .homebtn').click();
-    await page.waitForSelector('.homepanel .hrow');
-    expect(await page.locator('.homepanel .hrow').count() >= 10, 'home menu rows missing');
-    await shot('home');
-    await page.locator('.homepanel .hrow').filter({ hasText: 'الإعدادات' }).click();
+    if (vp === 'phone') {
+      // the phone's home button opens the start screen
+      await page.waitForSelector('.startscreen .stactions .btn');
+      await shot('home');
+      await page.locator('.startscreen .btn').filter({ hasText: 'إعدادات التطبيق' }).click();
+    } else {
+      await page.waitForSelector('.homepanel .hrow');
+      expect(await page.locator('.homepanel .hrow').count() >= 10, 'home menu rows missing');
+      await shot('home');
+      await page.locator('.homepanel .hrow').filter({ hasText: 'الإعدادات' }).click();
+    }
     await page.locator('.sheet select').nth(1).selectOption('light');
     expect(await page.evaluate(() => document.documentElement.dataset.theme) === 'light', 'theme did not switch');
     await page.locator('.sheet select').nth(1).selectOption('dark');
     await page.keyboard.press('Escape');
+    await page.evaluate(() => window.midad.closeStart());
     // layers +
     if (vp === 'phone') { await page.evaluate(() => window.midad.toggleDrawer('layers', true)); await page.waitForTimeout(350); }
     await page.locator('button[aria-label="طبقة نص جديدة"]:visible, button[title="طبقة نص جديدة"]:visible').first().click();
@@ -635,7 +644,7 @@ scenarios.push({
     expect(await page.locator('.side .preset.mine').count() === 0, 'style not deleted');
     await closeDrawer(page, vp);
     // stickers
-    await page.locator('.catbar button[title="أدوات"]:visible').first().click();
+    await page.locator('.catbar button[title="الرئيسية"]:visible').first().click();
     await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.title?.startsWith('مكتبتي') && b.offsetParent).click());
     await page.waitForSelector('.libtabs');
     await page.locator('.sheet button').filter({ hasText: 'حفظ المحدد كملصق' }).click();
@@ -658,13 +667,124 @@ scenarios.push({
     expect(await page.locator('.libgrid .libcard').count() === 0, 'image not deleted');
     // the sticker is still in the library after a reload
     await page.reload();
-    await page.waitForFunction(() => window.midad?.canvas);
+    await page.waitForFunction(() => window.midad?.booted);
+    await page.evaluate(() => window.midad.closeStart());
     await page.waitForTimeout(400);
-    await page.locator('.catbar button[title="أدوات"]:visible').first().click();
+    await page.locator('.catbar button[title="الرئيسية"]:visible').first().click();
     await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.title?.startsWith('مكتبتي') && b.offsetParent).click());
     await page.waitForSelector('.libgrid .libcard');
     await page.locator('.libgrid .libdel').first().click();
     await page.waitForTimeout(200);
     expect(await page.locator('.libgrid .libcard').count() === 0, 'sticker not deleted');
+  },
+});
+
+/* ------------------------------ spec v2 (كلمة) ------------------------------ */
+const V2 = ['phone', 'tablet', 'laptop'];
+scenarios.push({
+  phase: 8, id: 'v2shell', name: 'كلمة: الشاشة الأم والواجهة المناسبة لكل جهاز', viewports: V2, keepStart: true,
+  async run({ page, vp, expect, shot }) {
+    await page.waitForSelector('.startscreen .stactions .btn');
+    expect(await page.locator('.startscreen .stactions .btn').count() === 3, 'start screen actions');
+    expect((await page.title()).includes('كلمة'), 'title must say كلمة');
+    await shot('start');
+    await page.locator('.stcontinue').click();
+    expect(!(await page.locator('.startscreen').count()), 'start screen did not close');
+    const mode = await page.evaluate(() => ['mobile', 'tablet', 'laptop'].find((k) => document.body.classList.contains(k)));
+    expect(mode === { phone: 'mobile', tablet: 'tablet', laptop: 'laptop' }[vp], `wrong interface ${mode}`);
+    const over = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+    expect(over <= 0, `horizontal overflow ${over}px`);
+    const accent = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim().toUpperCase());
+    expect(accent === '#E6B422', 'accent colour ' + accent);
+    if (vp === 'phone') {
+      // bottom to top: tabs, layers strip, tools
+      const y = async (sel) => (await page.locator(sel).boundingBox()).y;
+      expect(await y('.bottombar .catbar') > await y('.layerstrip') && await y('.layerstrip') > await y('.toolrow'), 'phone bars out of order');
+      expect(await page.locator('.bottombar .catbar .btn').count() === 7, 'seven tabs');
+    } else {
+      expect(await page.locator('.side').isVisible(), 'side panel hidden');
+    }
+    await shot('main');
+  },
+});
+
+scenarios.push({
+  phase: 8, id: 'v2strip', name: 'كلمة: شريط الطبقات في الجوال (تحديد، قائمة ⋮، ترتيب بالسحب)', viewports: ['phone'],
+  async run({ page, expect, shot }) {
+    await fresh(page);
+    const a = await addText(page, 'أ'); const b = await addText(page, 'ب');
+    await page.waitForTimeout(150);
+    expect(await page.locator('.layerstrip .lscard').count() === 2, 'strip cards');
+    await page.locator(`.lscard[data-id="${a}"] .lsthumb`).tap();
+    expect((await page.evaluate(() => window.midad.app.selection))[0] === a, 'tap did not select');
+    await page.locator(`.lscard[data-id="${a}"] .lsmore`).tap();
+    await page.locator('.popmenu .cmi').filter({ hasText: 'تكرار' }).tap();
+    expect((await doc(page)).objects.length === 3, 'duplicate from ⋮ failed');
+    await page.locator(`.lscard[data-id="${b}"] .lsmore`).tap();
+    await page.locator('.popmenu .cmi').filter({ hasText: 'إخفاء' }).tap();
+    expect((await doc(page)).objects.find((o) => o.id === b).visible === false, 'hide failed');
+    // long press then drag the top card onto the last one
+    await page.waitForTimeout(200);
+    const cards = page.locator('.layerstrip .lscard');
+    const first = await cards.first().boundingBox(), last = await cards.last().boundingBox();
+    const before = (await doc(page)).objects.map((o) => o.id).join();
+    const cdp = await page.context().newCDPSession(page);
+    const pt = (x, y) => [{ x, y, id: 1 }];
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pt(first.x + 33, first.y + 40) });
+    await page.waitForTimeout(500);
+    for (let i = 1; i <= 8; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pt(first.x + 33 + (last.x - first.x) * i / 8, first.y + 40) });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await page.waitForTimeout(200);
+    expect((await doc(page)).objects.map((o) => o.id).join() !== before, 'drag did not reorder layers');
+    await shot('strip');
+  },
+});
+
+scenarios.push({
+  phase: 8, id: 'v2iso', name: 'كلمة: صفحة العزل بـ ✓ و✕ وزر الرجوع', viewports: ['phone'],
+  async run({ page, expect, shot }) {
+    await fresh(page);
+    const a = await addText(page, 'كلمة');
+    await addText(page, 'خلفية', { m: [1, 0, 0, 1, 200, 700] });
+    await page.evaluate((id) => window.midad.app.select(id), a);
+    const undo0 = await page.evaluate(() => window.midad.app.undoStack.length);
+    const enter = async () => {
+      await page.locator('.catbar button[title="مظهر"]:visible').first().tap();
+      await page.locator('.toolrow .btn').filter({ hasText: 'الألوان والتعبئة' }).first().tap();
+      await page.waitForSelector('body.isolate .isotop .isook');
+    };
+    await enter();
+    expect(!(await page.locator('.bottombar').isVisible()), 'bottom bars still shown in isolation');
+    const nsec = await page.locator('#props .psec:visible').count();
+    expect(nsec >= 1 && nsec <= 2, `isolation should show only the tool's settings (${nsec} sections shown)`);
+    const ghost = await page.evaluate(() => [...document.querySelectorAll('#content > [data-id]')].map((e) => e.style.opacity));
+    expect(ghost.includes('0.3'), 'rest of the design not ghosted');
+    const recolor = () => page.evaluate((id) => { const { app } = window.midad; app.doc.objects.find((o) => o.id === id).style.fills[0].color = '#ff0000'; app.commit('لون'); app.render({ panels: true }); }, a);
+    await recolor();
+    await shot('isolated');
+    // ✕ asks first, then discards
+    await page.locator('.isono').tap();
+    await page.waitForSelector('.sheet .confirm');
+    await page.locator('.sheet .btn').filter({ hasText: 'تجاهل' }).tap();
+    await page.waitForTimeout(200);
+    expect(!(await page.evaluate(() => document.body.classList.contains('isolate'))), 'still isolated after ✕');
+    expect((await doc(page)).objects.find((o) => o.id === a).style.fills[0].color === '#1b1b1b', '✕ kept the change');
+    // ✓ keeps it as one history step
+    await enter();
+    await recolor();
+    await page.evaluate((id) => { const { app } = window.midad; app.doc.objects.find((o) => o.id === id).style.opacity = 0.5; app.commit('شفافية'); }, a);
+    await page.locator('.isook').tap();
+    await page.waitForTimeout(200);
+    const d = await doc(page);
+    expect(d.objects.find((o) => o.id === a).style.fills[0].color === '#ff0000', '✓ lost the change');
+    expect(await page.evaluate(() => window.midad.app.undoStack.length) === undo0 + 1, 'isolation should be one undo step');
+    // Android back = ✕
+    await enter();
+    await page.evaluate((id) => { const { app } = window.midad; app.doc.objects.find((o) => o.id === id).style.fills[0].color = '#00ff00'; app.commit('لون'); }, a);
+    await page.goBack();
+    await page.waitForSelector('.sheet .confirm');
+    await page.locator('.sheet .btn').filter({ hasText: 'تجاهل' }).tap();
+    await page.waitForTimeout(250);
+    expect(!(await page.evaluate(() => document.body.classList.contains('isolate'))), 'back did not leave isolation');
   },
 });

@@ -92,6 +92,13 @@ export class Canvas {
     // content
     const hidden = this.tool.hiddenIds?.(this.app) || null;
     this.content.innerHTML = doc.objects.map((o) => (hidden?.has(o.id) ? '' : renderObject(o))).join('');
+    // isolation page: the rest of the design is shown as a faint ghost
+    const iso = this.app.iso;
+    if (iso) {
+      const keep = new Set([...(iso.sel || []), ...this.app.selection]);
+      const ghost = this.app.settings.isoGhost ?? 0.3;
+      for (const el of this.content.children) if (el.dataset?.id && !keep.has(el.dataset.id)) { el.style.opacity = String(ghost); el.style.pointerEvents = 'none'; }
+    }
     this.drawGrid();
     this.drawGuides();
     this.drawOverlay();

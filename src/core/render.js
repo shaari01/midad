@@ -194,5 +194,5 @@ export function renderDocSVG(doc, { background = true, objects = null, xlink = t
   let content = list.map((o) => renderObject(o, { forExport: true })).join('\n');
   // xlink:href keeps older Illustrator / CorelDRAW versions happy
   if (xlink) content = content.replace(/<(use|image) href=/g, '<$1 xlink:href=');
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg"${xlink ? ' xmlns:xlink="http://www.w3.org/1999/xlink"' : ''} version="1.1" width="${num(vb.w)}" height="${num(vb.h)}" viewBox="${num(vb.x)} ${num(vb.y)} ${num(vb.w)} ${num(vb.h)}">\n<title>مِداد</title>\n${bg}\n${content}\n</svg>\n`;
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg"${xlink ? ' xmlns:xlink="http://www.w3.org/1999/xlink"' : ''} version="1.1" width="${num(vb.w)}" height="${num(vb.h)}" viewBox="${num(vb.x)} ${num(vb.y)} ${num(vb.w)} ${num(vb.h)}">\n<title>كلمة</title>\n${bg}\n${content}\n</svg>\n`;
 }

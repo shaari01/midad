@@ -5,7 +5,7 @@ import { tr } from './ui/i18n.js';
 import { h, btn, icon, toast, closeSheet, openSheet } from './ui/dom.js';
 import { renderProps, renderLayers } from './ui/panels.js';
 import { openFileMenu, exportDialog, importGraphic, importSVGText, newProjectDialog, projectsDialog } from './ui/menus.js';
-import { CATS, catItems, renderCat, setRerender, openHome, closeHome, applyLook, openContextMenu, closeContext, installTooltips, Clip, flip, shortcutsSheet } from './ui/chrome.js';
+import { CATS, catItems, renderCat, setRerender, setIsoHook, openHome, closeHome, applyLook, openContextMenu, closeContext, installTooltips, Clip, flip, shortcutsSheet } from './ui/chrome.js';
 import { convertSelection } from './ui/panels.js';
 import { TOOLS, TOOLBAR } from './tools/index.js';
 import { Store } from './core/store.js';
@@ -15,9 +15,10 @@ import { preloadFonts, worldBounds, unionBounds } from './core/geometry.js';
 import { toSVG, svgToPNG } from './core/export.js';
 import { loadPhases } from './phases.js';
 import { loadLibrary } from './ui/library.js';
+import { detectMode, goFullscreen, openStart, closeStart, renderLayerStrip, enterIsolation, isoTopBar, isoSheetHeader, filterIsoSections, lensPopover, Iso, Strip } from './ui/shell.js';
 
 const app = new App();
-window.midad = { app };
+window.midad = { app, closeStart };
 
 async function boot() {
   await loadPhases(app);
@@ -42,7 +43,12 @@ async function boot() {
   else await starter();
 
   registerSW();
-  handleLaunchFiles();
+  const launched = handleLaunchFiles();
+  // start screen (new project, previous projects, open file, app settings)
+  if (!launched && app.settings.startScreen !== false && !/[?&]nostart/.test(location.search)) openStart(app);
+  // the first tap anywhere asks for full screen on phones and tablets
+  document.addEventListener('pointerup', () => goFullscreen(), { once: true });
+  window.midad.booted = true;
 }
 
 async function starter() {
@@ -68,15 +74,17 @@ function buildUI() {
   const nameLbl = h('span', { class: 'pname' }, app.projectName);
   const installB = btn('install', 'تثبيت', () => doInstall(), { class: 'install hidden', iconOnly: true });
   const propsB = btn('props', 'الخصائص', () => toggleDrawer('props'), { class: 'mobile-only', iconOnly: true });
-  const layersB = btn('layers', 'الطبقات', () => toggleDrawer('layers'), { class: 'mobile-only', iconOnly: true });
+  const layersB = btn('layers', 'الطبقات', () => toggleDrawer('layers'), { class: 'mobile-only layersbtn', iconOnly: true });
+  let lensB;
+  lensB = btn('lens', 'عدسة', () => lensPopover(lensB, canvas, stage), { class: 'mobile-only', iconOnly: true, title: 'التكبير والتصغير وملاءمة الشاشة' });
   const catbar = h('nav', { class: 'catbar', 'aria-label': 'قوائم الأدوات' });
 
   const top = h('header', { class: 'topbar' },
-    btn('home', 'الرئيسية', () => openHome(app), { iconOnly: true, class: 'homebtn', title: 'الرئيسية: جديد، فتح، حفظ، استيراد، تصدير، الإعدادات' }),
-    h('div', { class: 'brand' }, h('b', {}, 'مِداد'), nameLbl),
+    btn('home', 'الرئيسية', () => (document.body.classList.contains('mobile') ? openStart(app) : openHome(app)), { iconOnly: true, class: 'homebtn', title: 'الرئيسية: جديد، فتح، حفظ، استيراد، تصدير، الإعدادات' }),
+    h('div', { class: 'brand' }, h('b', {}, 'كلمة'), nameLbl),
     h('div', { class: 'catslot laptop-only' }),
     h('div', { class: 'spacer' }),
-    undoB, redoB,
+    undoB, redoB, lensB,
     h('div', { class: 'zoombox laptop-only' },
       btn('zoomOut', 'تصغير', () => zoomBy(1 / 1.25), { iconOnly: true, class: 'ghost' }), zoomLbl,
       btn('zoomIn', 'تكبير', () => zoomBy(1.25), { iconOnly: true, class: 'ghost' })),
@@ -96,11 +104,17 @@ function buildUI() {
     h('div', { class: 'pane pane-props' }, props),
     h('div', { class: 'pane pane-layers' }, h('h3', { class: 'laptop-only' }, 'الطبقات'), layers));
   const toolrow = h('nav', { class: 'toolrow', 'aria-label': 'الأدوات' });
-  const bottombar = h('div', { class: 'bottombar' }, toolrow);
+  const strip = h('div', { class: 'layerstrip', 'aria-label': 'الطبقات' });
+  const bottombar = h('div', { class: 'bottombar' }, toolrow, strip);
   root.append(top, h('main', {}, toolbar, stage, side), bottombar);
 
   canvas = new Canvas(app, stage, TOOLS);
   window.midad.canvas = canvas;
+  // isolation page: its own top bar (✕ undo redo lens hand select ✓)
+  root.prepend(isoTopBar(app, canvas, stage));
+  setIsoHook((a, it) => (document.body.classList.contains('mobile') ? enterIsolation(a, it) : false));
+  let stripT = 0;
+  const refreshStrip = () => { if (!document.body.classList.contains('mobile')) return; clearTimeout(stripT); stripT = setTimeout(() => { if (Strip.busy) refreshStrip(); else renderLayerStrip(app, strip); }, 30); };
   stage.addEventListener('contextmenu', (e) => { e.preventDefault(); openContextMenu(app, canvas, e); });
 
   // which category holds the current tool
@@ -122,6 +136,8 @@ function buildUI() {
 
   const refreshPanels = () => {
     renderProps(app, props);
+    if (Iso.active) { filterIsoSections(app, props); props.prepend(isoSheetHeader(app)); }
+    refreshStrip();
     renderLayers(app, layers);
     undoB.disabled = !app.undoStack.length;
     redoB.disabled = !app.redoStack.length;
@@ -130,8 +146,8 @@ function buildUI() {
   app.on('panels', () => { if (!isTypingInPanel()) refreshPanels(); else app.pendingPanels = true; });
   app.on('history', () => { undoB.disabled = !app.undoStack.length; redoB.disabled = !app.redoStack.length; });
   app.on('tool', (t) => { const c = catOfTool(t); if (c && c !== (app.settings.cat || 'text') && t !== 'select') app.settings.cat = c; renderToolbars(); canvas.draw(); });
-  app.on('selection', () => renderToolbars());
-  app.on('history', () => renderToolbars());
+  app.on('selection', () => { renderToolbars(); refreshStrip(); });
+  app.on('history', () => { renderToolbars(); refreshStrip(); });
   app.on('rebuildUI', async () => { await app.saveNow(); await Store.setMisc('settings', app.settings); location.reload(); });
   app.on('applyMode', () => applyMode());
   app.on('project', () => { nameLbl.textContent = app.projectName; refreshPanels(); });
@@ -166,18 +182,22 @@ function buildUI() {
 
   // interface mode
   const applyMode = () => {
-    const m = app.settings.mode === 'auto' ? (window.innerWidth < 900 ? 'mobile' : 'laptop') : app.settings.mode;
-    document.body.classList.toggle('mobile', m === 'mobile');
-    document.body.classList.toggle('laptop', m === 'laptop');
+    const m = detectMode(app.settings.mode || 'auto');
+    for (const k of ['mobile', 'tablet', 'laptop']) document.body.classList.toggle(k, m === k);
+    // phase 1 of spec v2: the tablet uses the wide layout with touch sizes
+    if (m === 'tablet') document.body.classList.add('wide');
+    else document.body.classList.toggle('wide', m === 'laptop');
+    refreshStrip();
     renderToolbars();
     setTimeout(() => canvas.draw(), 50);
   };
   function toggleMode() {
-    const cur = document.body.classList.contains('mobile') ? 'mobile' : 'laptop';
-    app.settings.mode = cur === 'mobile' ? 'laptop' : 'mobile';
+    const order = ['mobile', 'tablet', 'laptop'];
+    const cur = order.find((k) => document.body.classList.contains(k)) || 'laptop';
+    app.settings.mode = order[(order.indexOf(cur) + 1) % 3];
     app.saveSettings();
     applyMode();
-    toast(app.settings.mode === 'mobile' ? 'وضع الجوال: أدوات أقل في شريط سفلي' : 'وضع اللابتوب: كل الأدوات ظاهرة');
+    toast({ mobile: 'واجهة الجوال', tablet: 'واجهة التابلت', laptop: 'واجهة اللابتوب' }[app.settings.mode]);
   }
   app.on('toggleMode', () => toggleMode());
   window.addEventListener('resize', () => { if (app.settings.mode === 'auto') applyMode(); });
@@ -260,7 +280,7 @@ function buildUI() {
     btn('check', 'تطبيق', () => app.applyPreview(), { iconOnly: true, class: 'pvok', title: 'تطبيق (Enter)' }));
   stage.append(pvbar);
   app.on('preview', (p) => {
-    pvbar.hidden = !p;
+    pvbar.hidden = !p || !!Iso.active;
     if (p) pvbar.querySelector('.pvlbl').textContent = tr('معاينة') + (p.label ? ': ' + tr(p.label) : '');
   });
   refreshPanels();
@@ -331,7 +351,7 @@ function handleLaunchFiles() {
   if ('launchQueue' in window) {
     window.launchQueue.setConsumer(async (params) => {
       const files = await Promise.all((params.files || []).map((fh) => fh.getFile()));
-      if (files.length) handleFiles(files);
+      if (files.length) { closeStart(); handleFiles(files); }
     });
   }
 }

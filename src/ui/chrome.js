@@ -14,15 +14,20 @@ import { openFontPicker } from './fontpicker.js';
 import { openLibrary, saveSelectionAsSticker } from './library.js';
 
 export const CATS = [
+  { id: 'home', icon: 'home', label: 'الرئيسية' },
   { id: 'edit', icon: 'wrench', label: 'تعديل' },
   { id: 'text', icon: 'penLine', label: 'نص' },
-  { id: 'shape', icon: 'pencilLine', label: 'شكل' },
+  { id: 'shape', icon: 'pencil', label: 'شكل' },
   { id: 'look', icon: 'paintbrush', label: 'مظهر' },
   { id: 'tools', icon: 'scissors', label: 'أدوات' },
-  { id: 'page', icon: 'settings2', label: 'إعدادات الصفحة' },
+  { id: 'page', icon: 'sheet', label: 'إعدادات الصفحة' },
 ];
+/** Tabs whose tools open the isolation page on the phone (spec v2, 2.4). */
+export const ISO_CATS = new Set(['shape', 'look', 'tools']);
 
 const tool = (id, ic, label, hint, key) => ({ tool: id, icon: ic, label, hint, key });
+/** Mark an item as opening the isolation page, showing only these panel sections. */
+const iso = (it, sections) => ({ ...it, iso: sections });
 const act = (ic, label, hint, run, opts = {}) => ({ icon: ic, label, hint, run, ...opts });
 
 /** Open the properties panel and bring a section (by its title) into view. */
@@ -71,6 +76,19 @@ export function catItems(app, cat) {
   const s = app.settings;
   const toggle = (key, ic, label, hint) => act(ic, label, hint, () => { s[key] = !s[key]; app.saveSettings?.(); app.render({ panels: true }); window.midad.canvas.draw(); }, { active: !!s[key] });
   switch (cat) {
+    case 'home': return [
+      act('new', 'جديد', 'يحفظ المشروع الحالي ويفتح مشروعًا جديدًا (Ctrl+N)', () => newProjectDialog(app)),
+      act('open', 'فتح', 'يحفظ المشروع الحالي ويفتح مشروعًا محفوظًا (Ctrl+O)', () => projectsDialog(app)),
+      act('save', 'حفظ', 'حفظ المشروع الحالي (Ctrl+S)', async () => { await app.saveNow(); toast('حُفظ'); }),
+      act('saveAll', 'حفظ باسم', 'حفظ نسخة باسم جديد (Ctrl+Shift+S)', () => saveAs(app)),
+      act('import', 'استيراد من الجهاز', 'إدراج صورة أو SVG أو مشروع من الجهاز', () => importGraphic(app)),
+      act('fileInput', 'استيراد من برامجي', 'استقبال عمل مرسل من برامجك الأخرى', () => importFromApps(app)),
+      act('export', 'تصدير إلى الجهاز', 'JPG بخلفية، أو PNG وGIF بخلفية شفافة، أو SVG (Ctrl+E)', () => exportDialog(app)),
+      act('send', 'تصدير إلى برامجي', 'إرسال التصميم إلى برامجك الأخرى', () => sendToAppsDialog(app)),
+      act('library', 'مكتبتي', 'ملصقاتك وصورك وأنماطك وخطوطك: أضف واحذف', () => openLibrary(app)),
+      act('settings', 'الإعدادات', 'المظهر، والواجهة، والاختصارات، ودليل الأدوات', () => openSettings(app)),
+      act('logOut', 'إنهاء', 'يحفظ عملك ويغلق البرنامج', async () => { await app.saveNow(); toast('حُفظ عملك'); setTimeout(() => { window.close(); }, 300); }),
+    ];
     case 'edit': return [
       tool('select', 'select', 'تحديد', 'حدّد العناصر وحرّكها وكبّرها ودوّرها بالمقابض', 'V'),
       tool('pan', 'pan', 'تحريك اللوحة', 'اسحب لتحريك مساحة العمل (أو المسافة + سحب)', 'H'),
@@ -89,64 +107,60 @@ export function catItems(app, cat) {
       act('front', 'تقديم للأمام', 'إلى أعلى الكل (Ctrl+])', () => app.arrange('top'), { disabled: !hasSel }),
       act('back', 'إرجاع للخلف', 'إلى أسفل الكل (Ctrl+[)', () => app.arrange('bottom'), { disabled: !hasSel }),
       act('scaling', 'حجم مساحة العمل', 'مقاس اللوحة وخلفيتها', () => { app.select([]); showSection(app, 'المقاس'); }),
-      act('library', 'مكتبتي', 'ملصقاتك وصورك وأنماطك وخطوطك: أضف واحذف', () => openLibrary(app)),
       act('imageUp', 'إدراج صورة', 'أدرج صورة (بخلفية أو شفافة) أو SVG', () => importGraphic(app)),
       act('fit', 'ملاءمة الشاشة', 'إظهار اللوحة كاملة (Ctrl+0)', () => window.midad.canvas.fit()),
     ];
     case 'text': return [
       tool('text', 'text', 'كتابة', 'المس اللوحة لإضافة نص جديد', 'T'),
       act('textCursor', 'تعديل النص', 'تصحيح النص المحدد أو إضافة التشكيل', () => { if (one?.type === 'text') app.emit('editText'); else toast('حدّد نصًّا أولًا'); }),
-      act('superscript', 'تشكيل', 'إضافة الحركات إلى النص المحدد', () => { if (one?.type === 'text') { app.emit('editText'); setTimeout(() => [...document.querySelectorAll('#props button')].find((b) => b.textContent === tr('إضافة تشكيل'))?.click(), 120); } else toast('حدّد نصًّا أولًا'); }),
       act('font', 'خط النص', 'اختيار الخط للنص المحدد', () => { if (one?.type === 'text' || one?.type === 'letters') openFontPicker(app, one); else toast('حدّد نصًّا أولًا'); }),
       tool('letters', 'explode', 'الحروف', 'فكّ الكلمة وتحريك كل حرف وتمديده وتبديل شكله', 'L'),
       tool('madd', 'kashida', 'مداد', 'تطويل النص الحيّ، أو مدّ الشكل أفقيًا وعموديًا مع بقاء السماكة', 'K'),
       tool('textpath', 'route', 'رسم مسار للنص', 'ارسم بإصبعك مسارًا يسير عليه النص المحدد'),
-      act('letterText', 'حروف الخط كأشكال', 'إدراج أي شكل من أشكال حروف الخط كشكل قابل للتعديل', () => import('../phase6.js').then((m) => m.openGlyphs(app))),
+      act('letterText', 'رمز', 'Glyphs: لوحة كل حروف الخط المختار وحركات التشكيل، لإدراج أي شكل منها كشكل قابل للتعديل', () => import('../phase6.js').then((m) => m.openGlyphs(app))),
     ];
     case 'shape': return [
-      act('outline', 'تحويل إلى شكل (نص أو صورة)', 'النص يصير أشكالًا، والصورة تُتعقّب إلى شكل بلون واحد', () => {
+      iso(tool('bezier', 'penTool', 'المرسمة', 'ارسم شكلًا بنقاط ومنحنيات لتطويل حرف أو إضافة شكل', 'P'), ['المرسمة']),
+      iso(tool('pen', 'brush', 'كتابة يدوية', 'اكتب بالقلم أو الإصبع بقلم قصب أو مستدير', 'B'), ['الكتابة اليدوية']),
+      iso(tool('madd', 'stretchH', 'مداد', 'مدّ الشكل أفقيًا أو عموديًا من أي نقطة فيه', 'K'), ['مداد', 'التطويل']),
+      iso(tool('eraser', 'eraser', 'ممحاة', 'امسح جزءًا من الشكل', 'E'), ['الممحاة']),
+      iso(act('outline', 'تحويل إلى شكل', 'النص يصير أشكالًا، والصورة تُتعقّب إلى شكل بلون واحد', () => {
         if (one?.type === 'image') return showSection(app, 'تحويل الصورة إلى شكل');
         if (!hasSel) return toast('حدّد نصًّا أو صورة أولًا');
         convertSelection(app);
-      }),
-      tool('nodes', 'nodes', 'العُقد', 'تحريك النقاط ومقابض المنحنيات وإضافة النقاط وحذفها', 'A'),
-      tool('bezier', 'penTool', 'المرسمة (قلم المنحنيات)', 'ارسم شكلًا بنقاط ومنحنيات لتطويل حرف أو إضافة شكل', 'P'),
-      tool('pen', 'brush', 'كتابة يدوية', 'اكتب بالقلم أو الإصبع بقلم قصب أو مستدير', 'B'),
-      tool('madd', 'stretchH', 'مداد', 'مدّ الشكل أفقيًا أو عموديًا من أي نقطة فيه', 'K'),
-      tool('eraser', 'eraser', 'ممحاة', 'امسح جزءًا من الشكل', 'E'),
-      tool('knife', 'knife', 'سكين', 'اقطع الشكل إلى أجزاء', 'C'),
-      act('unlink', 'فكّ العقدة إلى عقدتين', 'في أداة العقد: يفصل الشكل عند العقدة المحددة', () => nodeOp(app, 'breakNode')),
-      act('combine', 'وصل طرفين', 'في أداة العقد: يصل طرفين مفتوحين (أو يدمجهما إن تلامسا)', () => nodeOp(app, 'joinNodes')),
-      act('merge', 'دمج العقد المحددة في عقدة واحدة', 'في أداة العقد', () => nodeOp(app, 'mergeNodes')),
-      act('slash', 'المنحنى إلى خط مستقيم', 'في أداة العقد: حدّد عقدتي طرفي المنحنى', () => nodeOp(app, 'straighten')),
-      act('lineSquiggle', 'الخط المستقيم إلى منحنٍ', 'في أداة العقد: حدّد عقدتي طرفي الخط', () => nodeOp(app, 'curve')),
-      act('simplify', 'تنعيم المسار', 'تقليل النقاط وتنعيم الشكل', () => showSection(app, 'تعديل الشكل')),
+      }, { needSel: true }), ['تحويل الصورة إلى شكل', 'النسخة الحيّة']),
+      iso(tool('knife', 'knife', 'سكين', 'اقطع الشكل إلى أجزاء', 'C'), ['السكين']),
+      iso(tool('nodes', 'nodes', 'العُقد', 'تحريك النقاط ومقابض المنحنيات، وإضافتها وحذفها، والفصل والوصل والجمع', 'A'), ['تعديل الشكل', 'عمليات العقد']),
+      iso(act('unlink', 'فصل', 'يفصل الشكل عند العقدة المحددة', () => nodeOp(app, 'breakNode')), ['عمليات العقد']),
+      iso(act('combine', 'وصل', 'يصل طرفين مفتوحين (أو يدمجهما إن تلامسا)', () => nodeOp(app, 'joinNodes')), ['عمليات العقد']),
+      iso(act('merge', 'جمع', 'يجمع العقد المحددة في عقدة واحدة', () => nodeOp(app, 'mergeNodes')), ['عمليات العقد']),
+      iso(act('slash', 'مستقيم', 'المنحنى إلى خط مستقيم بين عقدتين', () => nodeOp(app, 'straighten')), ['عمليات العقد']),
+      iso(act('lineSquiggle', 'انسيابي', 'الخط المستقيم إلى منحنٍ بين عقدتين', () => nodeOp(app, 'curve')), ['عمليات العقد']),
+      iso(act('simplify', 'تنعيم', 'تقليل النقاط وتنعيم الشكل', () => { if (one?.type === 'path') app.setTool('nodes'); else toast('حدّد شكلًا أولًا'); }, { needSel: true }), ['تعديل الشكل']),
     ];
     case 'look': return [
-      act('palette', 'أنماط جاهزة', 'ذهب، حدود، توهج… بضغطة', () => lookSection(app, 'أنماط جاهزة')),
-      act('fill', 'الألوان والتعبئة', 'لون، تدرج، نقش، صورة داخل الحرف', () => lookSection(app, 'التعبئة')),
-      act('square', 'الحدود', 'حد أو أكثر بألوان وسماكات', () => lookSection(app, 'الحدود')),
-      act('sparkles', 'المؤثرات', 'Contour، ظل، توهج، بروز', () => lookSection(app, 'تأثيرات')),
-      act('layoutGrid', 'مكتبة الألوان', 'لوحتي وألوان جاهزة', () => lookSection(app, 'مكتبة الألوان')),
-      act('blend', 'Blend (تدرج شكلي)', 'حدّد شكلين لإنشاء أشكال وسيطة بينهما', () => { if (app.selection.length !== 2) return toast('حدّد شكلين'); showSection(app, 'Blend'); }),
+      iso(act('fill', 'الألوان والتعبئة', 'لون، تدرج، نقش، صورة داخل الحرف', () => lookSection(app, 'التعبئة'), { needSel: true }), ['التعبئة']),
+      iso(act('square', 'الحدود', 'حد أو أكثر بألوان وسماكات', () => lookSection(app, 'الحدود'), { needSel: true }), ['الحدود']),
+      iso(act('sparkles', 'المؤثرات', 'Contour، ظل، توهج، بروز', () => lookSection(app, 'تأثيرات'), { needSel: true }), ['تأثيرات']),
+      iso(act('blend', 'تدرج الألوان', 'خطي، ومركزي، ومتعدد الألوان', () => lookSection(app, 'التعبئة'), { needSel: true }), ['التعبئة']),
+      iso(tool('warp', 'warp', 'غلاف وتشويه', 'قوس، موجة، انتفاخ، غلاف دائري، غلاف حر', 'W'), ['غلاف وتشويه']),
+      iso(tool('textpath', 'route', 'الكتابة على مسار', 'ضع النص على دائرة أو قوس أو مسار ترسمه'), ['الكتابة على']),
+      iso(act('combine', 'مزج', 'Blend: حدّد شكلين لإنشاء أشكال وسيطة بينهما', () => { if (app.selection.length !== 2) return toast('حدّد شكلين'); showSection(app, 'Blend'); }), ['Blend']),
     ];
     case 'tools': return [
-      act('library', 'مكتبتي', 'ملصقاتك وصورك وأنماطك وخطوطك: أضف واحذف', () => openLibrary(app)),
-      act('scan', 'تحويل الصورة إلى شكل', 'تعقّب الصورة وتحويلها إلى شكل بلون واحد', async () => {
+      iso(act('scan', 'تحويل الصورة إلى شكل', 'تعقّب الصورة وتحويلها إلى شكل بلون واحد مع حذف خلفيتها', async () => {
         if (one?.type === 'image') return showSection(app, 'تحويل الصورة إلى شكل');
         await importGraphic(app);
         setTimeout(() => showSection(app, 'تحويل الصورة إلى شكل'), 200);
-      }),
-      tool('builder', 'builder', 'تحديد المساحات (باني الأشكال)', 'مرّر إصبعك فوق مناطق تداخل الأشكال لدمجها أو حذفها', 'M'),
-      act('unite', 'دمج', 'دمج الأشكال المحددة في شكل واحد', () => pathOp(app, 'unite', 'دمج'), { disabled: app.selection.length < 2 }),
-      act('subtract', 'قص', 'طرح الأشكال العليا من السفلى', () => pathOp(app, 'minus', 'قص'), { disabled: app.selection.length < 2 }),
-      act('intersect', 'تقاطع', 'إبقاء المنطقة المشتركة فقط', () => pathOp(app, 'intersect', 'تقاطع'), { disabled: app.selection.length < 2 }),
-      act('exclude', 'استبعاد', 'حذف المنطقة المشتركة', () => pathOp(app, 'exclude', 'استبعاد'), { disabled: app.selection.length < 2 }),
-      act('divide', 'تقسيم', 'تقسيم الأشكال المتداخلة إلى أجزاء', () => pathOp(app, 'divide', 'تقسيم'), { disabled: app.selection.length < 2 }),
-      act('letterText', 'حروف الخط كأشكال', 'إدراج أشكال الحروف من الخط', () => import('../phase6.js').then((m) => m.openGlyphs(app))),
-      tool('textpath', 'route', 'الكتابة على مسار', 'ضع النص على دائرة أو قوس أو مسار ترسمه'),
-      tool('warp', 'warp', 'غلاف وتشويه', 'قوس، موجة، انتفاخ، غلاف دائري، غلاف حر', 'W'),
-      tool('kufi', 'kufi', 'كوفي مربع', 'الرسم على شبكة مربعة مع التناظر', 'Q'),
+      }), ['تحويل الصورة إلى شكل']),
+      iso(tool('builder', 'builder', 'تحديد المساحات', 'مرّر إصبعك فوق مناطق تداخل الأشكال لدمجها أو حذفها', 'M'), ['باني الأشكال']),
+      iso(act('unite', 'دمج', 'دمج الأشكال المحددة في شكل واحد', () => pathOp(app, 'unite', 'دمج'), { disabled: app.selection.length < 2 }), ['دمج وقص']),
+      iso(act('subtract', 'قص', 'طرح الأشكال العليا من السفلى', () => pathOp(app, 'minus', 'قص'), { disabled: app.selection.length < 2 }), ['دمج وقص']),
+      iso(act('intersect', 'تقاطع', 'إبقاء المنطقة المشتركة فقط', () => pathOp(app, 'intersect', 'تقاطع'), { disabled: app.selection.length < 2 }), ['دمج وقص']),
+      iso(act('exclude', 'استبعاد', 'حذف المنطقة المشتركة', () => pathOp(app, 'exclude', 'استبعاد'), { disabled: app.selection.length < 2 }), ['دمج وقص']),
+      iso(act('divide', 'تقسيم', 'تقسيم الأشكال المتداخلة إلى أجزاء', () => pathOp(app, 'divide', 'تقسيم'), { disabled: app.selection.length < 2 }), ['دمج وقص']),
+      iso(act('letterText', 'حروف الخط كأشكال', 'إدراج أشكال الحروف من الخط', () => import('../phase6.js').then((m) => m.openGlyphs(app))), []),
+      iso(tool('kufi', 'kufi', 'كوفي مربع', 'الرسم على شبكة مربعة مع التناظر', 'Q'), ['الكوفي المربع']),
     ];
     case 'page': return [
       toggle('rulers', 'ruler', 'مساطر', 'إظهار المساطر (Ctrl+R)'),
@@ -181,7 +195,11 @@ export function renderCat(app, host, cat, { horizontal = false } = {}) {
     if (it.tool && !TOOLS[it.tool]) continue;
     const label = it.label;
     const tip = it.hint ? `${tr(label)}\n${tr(it.hint)}${it.key ? ` (${it.key})` : ''}` : tr(label);
-    const b = btn(it.icon, label, () => { if (it.tool) app.setTool(app.tool === it.tool && it.tool !== 'select' ? 'select' : it.tool); else it.run(); renderCatAgain(); }, {
+    const b = btn(it.icon, label, () => {
+      if (it.iso && ISO_CATS.has(cat) && isoHook(app, it)) return;
+      if (it.tool) app.setTool(app.tool === it.tool && it.tool !== 'select' ? 'select' : it.tool); else it.run();
+      renderCatAgain();
+    }, {
       tool: it.tool, active: it.tool ? app.tool === it.tool : it.active, disabled: it.disabled, title: tip,
     });
     b.dataset.tip = tip;
@@ -190,6 +208,9 @@ export function renderCat(app, host, cat, { horizontal = false } = {}) {
   if (horizontal) host.scrollLeft = 0;
 }
 let renderCatAgain = () => {};
+let isoHook = () => false;
+/** The shell decides whether a tool opens the isolation page (phone). */
+export function setIsoHook(fn) { isoHook = fn; }
 export function setRerender(fn) { renderCatAgain = fn; }
 
 /* ------------------------------ home menu ------------------------------ */
@@ -198,7 +219,7 @@ export function openHome(app) {
   const nameIn = h('input', { value: app.projectName, 'aria-label': 'اسم المشروع' });
   nameIn.addEventListener('change', () => { app.projectName = nameIn.value.trim() || 'مشروع'; app.emit('project-name'); app.scheduleSave(); });
   const panel = h('nav', { class: 'homepanel', 'aria-label': 'الرئيسية' },
-    h('div', { class: 'hhead' }, h('b', {}, 'مِداد'), btn('close', 'إغلاق', closeHome, { iconOnly: true, class: 'ghost' })),
+    h('div', { class: 'hhead' }, h('b', {}, 'كلمة'), btn('close', 'إغلاق', closeHome, { iconOnly: true, class: 'ghost' })),
     field('اسم المشروع', nameIn),
     row('new', 'جديد', () => newProjectDialog(app)),
     row('open', 'فتح', () => projectsDialog(app)),
@@ -215,7 +236,7 @@ export function openHome(app) {
     h('hr'),
     row('settings', 'الإعدادات', () => openSettings(app)),
     row('keyboard', 'اختصارات لوحة المفاتيح', () => shortcutsSheet()),
-    row('help', 'عن مِداد', () => aboutDialog(app)),
+    row('help', 'عن كلمة', () => aboutDialog(app)),
     row('logOut', 'إنهاء البرنامج', async () => { await app.saveNow(); toast('حُفظ عملك'); setTimeout(() => { window.close(); }, 300); }));
   const back = h('div', { class: 'homeback', onClick: (e) => { if (e.target === back) closeHome(); } }, panel);
   closeHome();
@@ -269,7 +290,7 @@ function sendToAppsDialog(app) {
 /* ------------------------------ settings ------------------------------ */
 export function applyLook(app) {
   const s = app.settings;
-  const theme = s.theme === 'light' || s.theme === 'dark' ? s.theme : (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+  const theme = s.theme === 'light' ? 'light' : 'dark'; // dark by default (spec v2)
   document.documentElement.dataset.theme = theme;
   document.documentElement.style.setProperty('--ic', `${s.iconSize || 20}px`);
   document.body.classList.toggle('labels', !!s.showLabels);
@@ -281,10 +302,11 @@ export function openSettings(app) {
   const save = (rebuild) => { app.saveSettings?.(); applyLook(app); if (rebuild) app.emit('rebuildUI'); };
   openSheet('الإعدادات', h('div', { class: 'settings' },
     field('اللغة', select([['ar', 'عربي'], ['en', 'إنجليزي']], s.lang || 'ar', (v) => { s.lang = v; save(true); closeSheet(); })),
-    field('المظهر', select([['auto', 'حسب الجهاز'], ['light', 'فاتح'], ['dark', 'داكن']], s.theme || 'auto', (v) => { s.theme = v; save(); })),
+    field('المظهر', select([['dark', 'داكن'], ['light', 'فاتح']], s.theme === 'light' ? 'light' : 'dark', (v) => { s.theme = v; save(); })),
     field('حجم الأيقونات', select([['16', 'صغيرة جدًا'], ['20', 'صغيرة'], ['24', 'متوسطة'], ['28', 'كبيرة']], String(s.iconSize || 20), (v) => { s.iconSize = +v; save(); })),
     h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: !!s.showLabels, onChange: (e) => { s.showLabels = e.target.checked; save(); } }), 'إظهار المسميات تحت الأيقونات'),
-    field('وضع الواجهة', select([['auto', 'تلقائي'], ['mobile', 'جوال'], ['laptop', 'لابتوب']], s.mode || 'auto', (v) => { s.mode = v; save(); app.emit('applyMode'); })),
+    field('وضع الواجهة', select([['auto', 'تلقائي'], ['mobile', 'جوال'], ['tablet', 'تابلت'], ['laptop', 'لابتوب']], s.mode || 'auto', (v) => { s.mode = v; save(); app.emit('applyMode'); })),
+    field('الشاشة الأم عند الفتح', select([['on', 'تظهر'], ['off', 'لا تظهر']], s.startScreen === false ? 'off' : 'on', (v) => { s.startScreen = v === 'on'; save(); })),
     h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: s.keepLive !== false, onChange: (e) => { s.keepLive = e.target.checked; save(); } }), 'احتفظ بنسخة حيّة مخفية'),
     h('p', { class: 'hint' }, 'المسّ المطوّل على أي أيقونة يُظهر اسمها وشرحها. على اللابتوب يكفي وضع المؤشر عليها.')));
 }

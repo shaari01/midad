@@ -33,9 +33,13 @@ const results = [];
 for (const sc of scenarios) {
   if (only.length && !only.includes(sc.phase)) continue;
   for (const vp of sc.viewports || ['laptop', 'phone']) {
-    const ctxOpts = vp === 'phone'
-      ? { ...devices['Galaxy S9+'], locale: 'ar', acceptDownloads: true }
-      : { viewport: { width: 1366, height: 768 }, locale: 'ar', acceptDownloads: true };
+    // spec v2 sizes: phone 360×800, tablet 800×1280, laptop 1366×768
+    const VPS = {
+      phone: { ...devices['Galaxy S9+'], viewport: { width: 360, height: 800 }, screen: { width: 360, height: 800 }, deviceScaleFactor: 3 },
+      tablet: { ...devices['Galaxy Tab S4'], viewport: { width: 800, height: 1280 }, screen: { width: 800, height: 1280 }, deviceScaleFactor: 2 },
+      laptop: { viewport: { width: 1366, height: 768 } },
+    };
+    const ctxOpts = { ...VPS[vp], locale: 'ar', acceptDownloads: true };
     const ctx = await browser.newContext(ctxOpts);
     const page = await ctx.newPage();
     const errors = [];
@@ -44,8 +48,9 @@ for (const sc of scenarios) {
     const name = `${sc.name} [${vp}]`;
     try {
       await page.goto(URL);
-      await page.waitForFunction(() => window.midad?.canvas && document.querySelector('#content'), null, { timeout: 20000 });
+      await page.waitForFunction(() => window.midad?.booted && document.querySelector('#content'), null, { timeout: 20000 });
       await page.waitForTimeout(300);
+      if (!sc.keepStart) await page.evaluate(() => window.midad.closeStart?.());
       const shot = async (label) => page.screenshot({ path: `e2e/out/p${sc.phase}-${sc.id}-${vp}-${label}.png` });
       await sc.run({ page, vp, shot, expect: assert, ctx });
       if (errors.length) throw new Error('console errors:\n' + errors.join('\n'));

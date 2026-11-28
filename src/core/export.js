@@ -91,7 +91,7 @@ export function projectFile(doc, extra = {}) {
 
 export function parseProjectFile(text) {
   const j = JSON.parse(text);
-  if (j.format !== 'midad' || !j.doc) throw new Error('هذا الملف ليس مشروع مِداد');
+  if (j.format !== 'midad' || !j.doc) throw new Error('هذا الملف ليس مشروع كلمة');
   return j;
 }
 

@@ -41,7 +41,7 @@ export async function projectsDialog(app) {
   const list = await Store.listProjects();
   const grid = h('div', { class: 'projects' }, list.map((p) => h('div', { class: `pcard ${p.id === app.projectId ? 'on' : ''}` },
     h('button', { type: 'button', class: 'pthumb', onClick: async () => { const rec = await Store.loadProject(p.id); await app.openProject(rec); closeSheet(); } },
-      p.thumb ? h('img', { src: p.thumb, alt: '' }) : h('span', {}, 'مِداد')),
+      p.thumb ? h('img', { src: p.thumb, alt: '' }) : h('span', {}, 'كلمة')),
     h('div', { class: 'pmeta' }, h('strong', {}, p.name), h('small', {}, new Date(p.updated).toLocaleString('ar'))),
     h('div', { class: 'brow' },
       btn('copy', 'نسخة', async () => { const rec = await Store.loadProject(p.id); rec.id = uid('prj'); rec.name += ' (نسخة)'; rec.updated = Date.now(); await Store.saveProject(rec); projectsDialog(app); }, { iconOnly: true, class: 'ghost small' }),
@@ -179,8 +179,8 @@ async function sendAnimation(app) {
 }
 
 export function aboutDialog() {
-  openSheet('عن مِداد', h('div', { class: 'about' },
-    h('p', {}, 'مِداد: برنامج شخصي للخط العربي والتركيبات الخطية. يعمل بلا إنترنت بعد أول تحميل.'),
+  openSheet('عن كلمة', h('div', { class: 'about' },
+    h('p', {}, 'كلمة: برنامج شخصي للخط العربي والتركيبات الخطية. يعمل بلا إنترنت بعد أول تحميل.'),
     h('h4', {}, 'الخطوط المضمّنة (كلها برخصة SIL OFL 1.1)'),
     h('ul', {}, listFonts().filter((f) => !f.user).map((f) => h('li', {}, `${f.name} (${f.style}) — ${f.license}`))),
     h('p', { class: 'hint' }, 'المكتبات: HarfBuzz (تشكيل النص)، Paper.js (العمليات المتجهية)، jsPDF وsvg2pdf (PDF)، Lucide (الأيقونات).')));
