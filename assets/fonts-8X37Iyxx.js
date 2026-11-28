@@ -1,0 +1,1 @@
+export{c as readFontName,l as registerUserFont}from"./fonts-FIbmflf-.js";
